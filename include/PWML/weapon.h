@@ -5,7 +5,6 @@
 
 typedef struct {
 	const char* name;
-	bool weapon;
 	bool ship;
 	bool pilot;
 } _PWML_Weapon;

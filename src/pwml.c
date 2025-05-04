@@ -63,7 +63,9 @@ static GString* _strip_string(GString* string) {
 	char* stripped_str = malloc((string->len + 1) * sizeof(char));
 	strcpy(stripped_str, string->str);
 	g_strstrip(stripped_str);
-	return g_string_new(stripped_str);
+	GString* result = g_string_new(stripped_str);
+	free(stripped_str);
+	return result;
 }
 
 static bool _g_string_equals_c_string(GString* v1, const char* v2) {
@@ -90,6 +92,7 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 	if (!g_file_get_contents(g_build_filename(full_path, "Weapons.dat", NULL), &contents, NULL, &error)) {
 		g_printerr("Failed to read %s: %s\n", weapons_path, error->message);
 		g_error_free(error);
+		free((char*)full_path);
 		return NULL;
 	}
 
@@ -129,17 +132,11 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 			switch (stage) {
 				case WEAPONS_STAGE:
 				{
-					if (g_hash_table_contains(weapons, stripped->str)) {
-						_PWML_Weapon* weapon = g_hash_table_lookup(weapons, stripped->str);
-						weapon->weapon = true;
-					} else {
-						_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
-						weapon->name = _g_string_clone_buffer(stripped);
-						weapon->weapon = true;
-						weapon->pilot = false;
-						weapon->ship = false;
-						g_hash_table_insert(weapons, (char*)weapon->name, weapon);
-					}
+					_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
+					weapon->name = _g_string_clone_buffer(stripped);
+					weapon->pilot = false;
+					weapon->ship = false;
+					g_hash_table_insert(weapons, g_strdup(weapon->name), weapon);
 					break;
 				}
 				case SHIP_STAGE:
@@ -150,10 +147,9 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 					} else {
 						_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
 						weapon->name = _g_string_clone_buffer(stripped);
-						weapon->weapon = false;
 						weapon->pilot = false;
 						weapon->ship = true;
-						g_hash_table_insert(weapons, (char*)weapon->name, weapon);
+						g_hash_table_insert(weapons, g_strdup(weapon->name), weapon);
 					}
 					break;
 				}
@@ -165,10 +161,9 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 					} else {
 						_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
 						weapon->name = _g_string_clone_buffer(stripped);
-						weapon->weapon = false;
 						weapon->pilot = true;
 						weapon->ship = false;
-						g_hash_table_insert(weapons, (char*)weapon->name, weapon);
+						g_hash_table_insert(weapons, g_strdup(weapon->name), weapon);
 					}
 					break;
 				}
@@ -191,12 +186,27 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 
 static void _pwml_debug_abcdefg(gpointer key, gpointer value, gpointer user_data) {
 	_PWML_Weapon* weapon = (_PWML_Weapon*)value;
-	g_print("Weapon %s found with types %s%s%s\n", weapon->name, weapon->weapon ? "Weapon " : "\0", weapon->ship ? "Ship " : "\0", weapon->pilot ? "Pilot" : "\0");
+	g_print("Weapon %s found with types %s%s\n", weapon->name, weapon->ship ? "Ship " : "\0", weapon->pilot ? "Pilot" : "\0");
 }
 
 static void _pwml_clone_vanilla(PWML* pwml) {
 	GHashTable* weapons = _pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
+	if (!weapons) {
+		g_printerr("Failed to retrieve vanilla weapons\n");
+		return;
+	}
 	g_hash_table_foreach(weapons, _pwml_debug_abcdefg, NULL);
+	g_hash_table_destroy(weapons);
+}
+
+void pwml_free(PWML* pwml) {
+	free((char*)pwml->working_directory);
+
+	for (uint i = 0; i < pwml->n_mods; i++) {
+		pwml_mod_free(&pwml->mods[i]);
+	}
+	free(pwml->mods);
+	free(pwml);
 }
 
 PWML* pwml_new(const char *working_directory) {
@@ -211,8 +221,10 @@ PWML* pwml_new(const char *working_directory) {
 	pwml->n_mods = 0;
 	pwml->mods = NULL;
 	
-	if (!_pwml_ensure_folder(pwml, PWML_MODS_FOLDER))
+	if (!_pwml_ensure_folder(pwml, PWML_MODS_FOLDER)) {
+		pwml_free(pwml);
 		return NULL;
+	}
 
 	if (!g_file_test(g_build_filename(pwml->working_directory, PWML_ACTIVE_MODS_JSON, NULL), G_FILE_TEST_EXISTS)) {
 		_pwml_clone_vanilla(pwml);
@@ -229,8 +241,10 @@ const char* pwml_get_full_path(PWML* pwml, const char* path) {
 
 static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	PWML_Mod* mod = malloc(sizeof(PWML_Mod));
-	mod->path = path;
+	mod->path = g_strdup(path);
 	mod->id = g_path_get_basename(path);
+	mod->name = NULL;
+	mod->description = NULL;
 	
 	char* buffer;
 	GError *error = NULL;
@@ -238,12 +252,16 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	const char* metadata_path = g_build_filename(mod->path, PWML_METADATA_JSON_NAME, NULL);
 	if (!g_file_test(metadata_path, G_FILE_TEST_EXISTS)) {
 		g_printerr("Missing metadata for mod %s\n", mod->id);
+		pwml_mod_free(mod);
+		free((char*)metadata_path);
 		return NULL;
 	}
 
 	if (!g_file_get_contents(metadata_path, &buffer, NULL, &error)) {
 		g_printerr("Error reading file %s: %s\n", metadata_path, error->message);
+		pwml_mod_free(mod);
 		g_error_free(error);
+		free((char*)metadata_path);
 		return NULL;
 	}
 
@@ -252,21 +270,33 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 
 	if (!parsed_json) {
 		g_printerr("Failed to parse json for %s\n", metadata_path);
+		pwml_mod_free(mod);
+		free((char*)metadata_path);
 		return NULL;
 	}
 
 	struct json_object *name, *description;
 	if (!json_object_object_get_ex(parsed_json, "name", &name)) {
 		g_printerr("Missing name field in %s\n", metadata_path);
+		pwml_mod_free(mod);
+		json_object_put(parsed_json);
+		free((char*)metadata_path);
 		return NULL;
 	}
 	if (!json_object_object_get_ex(parsed_json, "description", &description)) {
 		g_printerr("Missing description field in %s\n", metadata_path);
+		pwml_mod_free(mod);
+		json_object_put(parsed_json);
+		free((char*)metadata_path);
 		return NULL;
 	}
+	
+	free((char*)metadata_path);
 
-	mod->name = json_object_get_string(name);
-	mod->description = json_object_get_string(description);
+	mod->name = g_strdup(json_object_get_string(name));
+	mod->description = g_strdup(json_object_get_string(description));
+
+	json_object_put(parsed_json);
 
 	return mod;
 }
@@ -293,6 +323,8 @@ void pwml_load_mods(PWML* pwml) {
 	if (real_n != files->len) {
 		pwml->mods = realloc(pwml->mods, real_n * sizeof(PWML_Mod));
 	}
+
+	g_ptr_array_free(files, true);
 }
 
 PWML_Mod* pwml_list_mods(PWML* pwml, uint* n_mods) {

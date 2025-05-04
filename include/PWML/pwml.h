@@ -11,6 +11,7 @@ extern const char* const PWML_METADATA_JSON_NAME;
 typedef struct PWML PWML;
 
 PWML* pwml_new(const char *working_directory);
+void pwml_free(PWML* pwml);
 
 const char* pwml_get_full_path(PWML* pwml, const char* path);
 PWML_Mod* pwml_list_mods(PWML* pwml, uint* n_mods);

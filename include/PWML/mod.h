@@ -8,4 +8,6 @@ typedef struct {
 	const char* description;
 } PWML_Mod;
 
+void pwml_mod_free(PWML_Mod* mod);
+
 #endif
