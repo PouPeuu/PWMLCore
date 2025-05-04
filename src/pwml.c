@@ -70,13 +70,19 @@ static bool _g_string_equals_c_string(GString* v1, const char* v2) {
 	return g_string_equal(v1, g_string_new(v2));
 }
 
+static char* _g_string_clone_buffer(GString* string) {
+	char* buffer = malloc((string->len + 1) * sizeof(char));
+	strcpy(buffer, string->str);
+	return buffer;
+}
+
 typedef enum {
 	WEAPONS_STAGE,
 	SHIP_STAGE,
 	PILOT_STAGE
 } _PWML_WeaponsDatStage;
 
-static void _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
+static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 	const char* full_path = pwml_get_full_path(pwml, weapons_path);
 	char* contents;
 	GError* error = NULL;
@@ -84,10 +90,10 @@ static void _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 	if (!g_file_get_contents(g_build_filename(full_path, "Weapons.dat", NULL), &contents, NULL, &error)) {
 		g_printerr("Failed to read %s: %s\n", weapons_path, error->message);
 		g_error_free(error);
-		return;
+		return NULL;
 	}
 
-	GHashTable* table = g_hash_table_new_full(g_str_hash, g_str_equal, free, _pwml_weapon_free);
+	GHashTable* weapons = g_hash_table_new_full(g_str_hash, g_str_equal, free, _pwml_weapon_free);
 
 	_PWML_WeaponsDatStage stage = WEAPONS_STAGE;
 
@@ -99,63 +105,71 @@ static void _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 			GString* stripped = _strip_string(line);
 			if (stripped->len == 0) {
 				g_string_free(stripped, true);
+				g_string_set_size(line, 0);
 				continue;
 			}
 
 			if (_g_string_equals_c_string(stripped, "Weapons:")) {
 				stage = WEAPONS_STAGE;
 				g_string_free(stripped, true);
+				g_string_set_size(line, 0);
 				continue;
 			} else if (_g_string_equals_c_string(stripped, "Ship weapons:")) {
 				stage = SHIP_STAGE;
 				g_string_free(stripped, true);
+				g_string_set_size(line, 0);
 				continue;
 			} else if (_g_string_equals_c_string(stripped, "Pilot weapons:")) {
 				stage = PILOT_STAGE;
 				g_string_free(stripped, true);
+				g_string_set_size(line, 0);
 				continue;
 			}
 
 			switch (stage) {
 				case WEAPONS_STAGE:
 				{
-					if (!g_file_test(g_build_filename(full_path, stripped->str, NULL), G_FILE_TEST_IS_DIR)) {
-						g_printerr("Weapons.dat entry %s has no actual files\n", stripped->str);
-						break;
+					if (g_hash_table_contains(weapons, stripped->str)) {
+						_PWML_Weapon* weapon = g_hash_table_lookup(weapons, stripped->str);
+						weapon->weapon = true;
+					} else {
+						_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
+						weapon->name = _g_string_clone_buffer(stripped);
+						weapon->weapon = true;
+						weapon->pilot = false;
+						weapon->ship = false;
+						g_hash_table_insert(weapons, (char*)weapon->name, weapon);
 					}
-
-					_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
-					char* name = malloc((stripped->len + 1) * sizeof(char));
-					strcpy(name, stripped->str);
-					weapon->name = name;
-					weapon->is_pilot = false;
-					weapon->is_ship = false;
-
-					g_hash_table_insert(table, name, weapon);
 					break;
 				}
 				case SHIP_STAGE:
 				{
-					if (!g_hash_table_contains(table, stripped->str)) {
-						g_printerr("Failed to make ship weapon %s; No such weapon exists (Did you forget to add it to the Weapons section first?)\n", stripped->str);
-						break;
+					if (g_hash_table_contains(weapons, stripped->str)) {
+						_PWML_Weapon* weapon = g_hash_table_lookup(weapons, stripped->str);
+						weapon->ship = true;
+					} else {
+						_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
+						weapon->name = _g_string_clone_buffer(stripped);
+						weapon->weapon = false;
+						weapon->pilot = false;
+						weapon->ship = true;
+						g_hash_table_insert(weapons, (char*)weapon->name, weapon);
 					}
-
-					_PWML_Weapon* weapon = g_hash_table_lookup(table, stripped->str);
-					weapon->is_ship = true;
-					g_print("Made weapon %s into a ship weapon\n", weapon->name);
 					break;
 				}
 				case PILOT_STAGE:
 				{
-					if (!g_hash_table_contains(table, stripped->str)) {
-						g_printerr("Failed to make pilot weapon %s; No such weapon exists (Did you forget to add it to the Weapons section first?)\n", stripped->str);
-						break;
+					if (g_hash_table_contains(weapons, stripped->str)) {
+						_PWML_Weapon* weapon = g_hash_table_lookup(weapons, stripped->str);
+						weapon->pilot = true;
+					} else {
+						_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
+						weapon->name = _g_string_clone_buffer(stripped);
+						weapon->weapon = false;
+						weapon->pilot = true;
+						weapon->ship = false;
+						g_hash_table_insert(weapons, (char*)weapon->name, weapon);
 					}
-
-					_PWML_Weapon* weapon = g_hash_table_lookup(table, stripped->str);
-					weapon->is_pilot = true;
-					g_print("Made weapon %s into a pilot weapon\n", weapon->name);
 					break;
 				}
 				default:
@@ -171,10 +185,18 @@ static void _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 
 	g_string_free(line, true);
 	g_free(contents);
+
+	return weapons;
+}
+
+static void _pwml_debug_abcdefg(gpointer key, gpointer value, gpointer user_data) {
+	_PWML_Weapon* weapon = (_PWML_Weapon*)value;
+	g_print("Weapon %s found with types %s%s%s\n", weapon->name, weapon->weapon ? "Weapon " : "\0", weapon->ship ? "Ship " : "\0", weapon->pilot ? "Pilot" : "\0");
 }
 
 static void _pwml_clone_vanilla(PWML* pwml) {
-	_pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
+	GHashTable* weapons = _pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
+	g_hash_table_foreach(weapons, _pwml_debug_abcdefg, NULL);
 }
 
 PWML* pwml_new(const char *working_directory) {
