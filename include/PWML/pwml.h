@@ -8,7 +8,11 @@
 extern const char* const PWML_MODS_FOLDER;
 extern const char* const PWML_METADATA_JSON_NAME;
 
-typedef struct PWML PWML;
+typedef struct PWML {
+	const char* working_directory;
+	uint n_mods;
+	PWML_Mod* mods;
+} PWML;
 
 PWML* pwml_new(const char *working_directory);
 void pwml_free(PWML* pwml);

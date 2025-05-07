@@ -1,4 +1,5 @@
 #include "PWML/pwml.h"
+#include "PWML/file_utils.h"
 #include "PWML/mod.h"
 #include "PWML/weapon.h"
 #include <glib.h>
@@ -22,12 +23,6 @@ const char* const PWML_GRAPHICS_FOLDER = "graphics";
 const char* const PWML_METADATA_JSON_NAME = "metadata.json";
 const char* const PWML_ACTIVE_MODS_JSON = "active_mods.json";
 
-typedef struct PWML {
-	const char* working_directory;
-	uint n_mods;
-	PWML_Mod* mods;
-} PWML;
-
 static bool _pwml_ensure_folder(PWML* pwml, const char* path) {
 	if (g_mkdir_with_parents(g_build_filename(pwml->working_directory, path, NULL), 0755) == -1) {
 		g_printerr("Failed to create folder %s\n", path);
@@ -38,25 +33,6 @@ static bool _pwml_ensure_folder(PWML* pwml, const char* path) {
 
 static GDir* _pwml_open_folder(PWML* pwml, const char* path) {
 	return g_dir_open(pwml_get_full_path(pwml, path), 0, NULL);
-}
-
-static GPtrArray* _pwml_list_files_in_directory(PWML* pwml, const char* relative_path) {
-	const char* path = pwml_get_full_path(pwml, relative_path);
-	GDir* dir = g_dir_open(path, 0, NULL);
-	if (!dir) {
-		g_printerr("Failed to open directory %s\n", path);
-		return NULL;
-	}
-
-	GPtrArray* files = g_ptr_array_new_with_free_func(g_free);
-	const char* entry;
-	while ((entry = g_dir_read_name(dir))) {
-		char* full_path = g_build_filename(path, entry, NULL);
-		g_ptr_array_add(files, full_path);
-	}
-
-	g_dir_close(dir);
-	return files;
 }
 
 static GString* _strip_string(GString* string) {
@@ -184,19 +160,30 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 	return weapons;
 }
 
-static void _pwml_debug_abcdefg(gpointer key, gpointer value, gpointer user_data) {
-	_PWML_Weapon* weapon = (_PWML_Weapon*)value;
-	g_print("Weapon %s found with types %s%s\n", weapon->name, weapon->ship ? "Ship " : "\0", weapon->pilot ? "Pilot" : "\0");
-}
-
 static void _pwml_clone_vanilla(PWML* pwml) {
+	int check_n = 0;
 	GHashTable* weapons = _pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
 	if (!weapons) {
 		g_printerr("Failed to retrieve vanilla weapons\n");
 		return;
 	}
-	g_hash_table_foreach(weapons, _pwml_debug_abcdefg, NULL);
-	g_hash_table_destroy(weapons);
+
+	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
+
+	GHashTableIter iterator;
+	g_hash_table_iter_init(&iterator, weapons);
+	
+	gpointer key, value;
+	while (g_hash_table_iter_next(&iterator, &key, &value)) {
+		_PWML_Weapon* weapon = (_PWML_Weapon*)value;
+		const char* weapon_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, weapon->name, NULL);
+		if (_is_dir(weapon_path))
+			_file_utils_copy_recursive(weapon_path, vanilla_mod_path);
+		free((char*)weapon_path);
+		_pwml_weapon_free(weapon);
+	}
+
+	free((char*)vanilla_mod_path);
 }
 
 void pwml_free(PWML* pwml) {
@@ -214,10 +201,8 @@ PWML* pwml_new(const char *working_directory) {
 		return NULL;
 
 	PWML* pwml = malloc(sizeof(PWML));
-	char* temp = malloc(strlen(working_directory) * sizeof(char));
-	strcpy(temp, working_directory);
 
-	pwml->working_directory = temp;
+	pwml->working_directory = g_strdup(working_directory);
 	pwml->n_mods = 0;
 	pwml->mods = NULL;
 	
@@ -233,10 +218,6 @@ PWML* pwml_new(const char *working_directory) {
 	pwml_load_mods(pwml);
 
 	return pwml;
-}
-
-const char* pwml_get_full_path(PWML* pwml, const char* path) {
-	return g_build_filename(pwml->working_directory, path, NULL);
 }
 
 static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
@@ -302,7 +283,7 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 }
 
 void pwml_load_mods(PWML* pwml) {
-	GPtrArray* files = _pwml_list_files_in_directory(pwml, PWML_MODS_FOLDER);
+	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_MODS_FOLDER));
 	
 	uint real_n = files->len;
 	uint mod_error_offset = 0;
