@@ -284,6 +284,24 @@ static bool __pwml_clone_vanilla_objects(PWML* pwml) {
 	return true;
 }
 
+static bool __pwml_clone_vanilla_music(PWML* pwml) {
+	const char* vanilla_mod_data = __pwml_get_vanilla_mod_data_folder(pwml);
+	const char* vanilla_mod_music = g_build_filename(vanilla_mod_data, PWML_MUSIC_FOLDER, NULL);
+	
+	if (g_mkdir_with_parents(vanilla_mod_music, 0755) == -1) {
+		g_print("Failed to make vanilla music directory\n");
+		return false;
+	};
+
+	const char* music_path = pwml_get_full_path(pwml, PWML_MUSIC_FOLDER);
+	_file_utils_copy_all(music_path, vanilla_mod_music);
+
+	free((char*)vanilla_mod_data);
+	free((char*)vanilla_mod_music);
+
+	return true;
+}
+
 static void _pwml_clone_vanilla(PWML* pwml) {
 	if (!__pwml_clone_vanilla_weapons(pwml)) {
 		g_printerr("Vanilla weapon cloning failed\n");
@@ -297,6 +315,11 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 
 	if (!__pwml_clone_vanilla_objects(pwml)) {
 		g_printerr("Vanilla object cloning failed\n");
+		return;
+	}
+
+	if (!__pwml_clone_vanilla_music(pwml)) {
+		g_printerr("Vanilla music cloning failed\n");
 		return;
 	}
 }
