@@ -13,7 +13,7 @@ bool _is_dir(const char* path) {
 	return g_file_test(path, G_FILE_TEST_IS_DIR);
 }
 
-static void _copy_file(GFile* source, GFile* destination) {
+void _file_utils_copy_file(GFile* source, GFile* destination) {
 	GError* error = NULL;
 	const char* destination_path = g_file_get_path(destination);
 	g_file_copy(source, destination, FLAGS, NULL, NULL, NULL, &error);
@@ -24,10 +24,10 @@ static void _copy_file(GFile* source, GFile* destination) {
 	free((char*)destination_path);
 }
 
-static void _copy_file_with_path(const char* source, const char* destination) {
+void _file_utils_copy_file_with_path(const char* source, const char* destination) {
 	GFile* source_gfile = g_file_new_for_path(source);
 	GFile* destination_gfile = g_file_new_for_path(destination);
-	_copy_file(source_gfile, destination_gfile);
+	_file_utils_copy_file(source_gfile, destination_gfile);
 	g_object_unref(source_gfile);
 	g_object_unref(destination_gfile);
 };
@@ -87,7 +87,7 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 				// Nevermind it pushes it to queued_files which does free it
 				g_ptr_array_free(files, false);
 			} else {
-				_copy_file_with_path(current_path, file_destination);
+				_file_utils_copy_file_with_path(current_path, file_destination);
 			}
 
 			free((char*)file_destination);
@@ -96,7 +96,7 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 		g_queue_free(queued_files);
 	} else {
 		const char* destination_file_path = g_build_filename(destination_path, base, NULL);
-		_copy_file_with_path(source_path, destination_file_path);
+		_file_utils_copy_file_with_path(source_path, destination_file_path);
 		free((char*)destination_file_path);
 	}
 

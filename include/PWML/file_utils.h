@@ -4,6 +4,7 @@
 #include "PWML/pwml.h"
 #include <glib.h>
 
+void _file_utils_copy_file_with_path(const char* source, const char* destination);
 void _file_utils_copy_recursive(const char* source_path, const char* destination_path);
 void _file_utils_copy_all(const char* from, const char* to);
 const char* pwml_get_full_path(PWML* pwml, const char* path);
