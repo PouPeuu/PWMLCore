@@ -331,7 +331,6 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 
 	json_object_put(root);
 	free((char*)metadata_path);
-	free((char*)json_str);
 
 	if (!__pwml_clone_vanilla_weapons(pwml)) {
 		g_printerr("Vanilla weapon cloning failed\n");
