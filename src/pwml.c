@@ -179,42 +179,46 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 		g_print("Failed to make vanilla weapons directory\n");
 	};
 
-	GHashTableIter iterator;
-	g_hash_table_iter_init(&iterator, weapons);
-	
-	gpointer key, value;
-	while (g_hash_table_iter_next(&iterator, &key, &value)) {
-		_PWML_Weapon* weapon = (_PWML_Weapon*)value;
+	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER));
+	for (uint i = 0; i < files->len; i++) {
+		const char* path = g_ptr_array_index(files, i);
+		if (_is_dir(path)) {
+			_PWML_Weapon* weapon;
+			const char* name = g_path_get_basename(path);
+			if (g_hash_table_contains(weapons, name)) {
+				weapon = g_hash_table_lookup(weapons, name);
+			} else {
+				weapon = malloc(sizeof(_PWML_Weapon));
+				weapon->name = g_strdup(name);
+				weapon->pilot = false;
+				weapon->ship = false;
+			}
 
-		const char* weapon_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, weapon->name, NULL);
-		if (_is_dir(weapon_path)) {
-			_file_utils_copy_recursive(weapon_path, vanilla_mod_weapons);
-	
-			const char *weapon_json_path = g_build_filename(weapon_path, PWML_WEAPON_JSON, NULL);
-			
-			json_object *root = json_object_new_object();
-	
+			_file_utils_copy_recursive(path, vanilla_mod_weapons);
+			const char* weapon_json_path = g_build_filename(vanilla_mod_weapons, name, PWML_WEAPON_JSON, NULL);
+
+			json_object* root = json_object_new_object();
+
 			json_object *ship = json_object_new_boolean(weapon->ship);
 			json_object_object_add(root, "ship", ship);
-	
+			
 			json_object *pilot = json_object_new_boolean(weapon->pilot);
 			json_object_object_add(root, "pilot", pilot);
-	
+
 			const char* json_str = json_object_to_json_string_ext(root, JSON_C_TO_STRING_PLAIN);
-	
+
 			GError* error = NULL;
 			g_file_set_contents(weapon_json_path, json_str, -1, &error);
 			if (error) {
 				g_printerr("Failed to write weapon json at %s\nGError: %s\n", weapon_json_path, error->message);
 				g_free(error);
 			}
-	
-			json_object_put(root);
+
+			free((char*)name);
 			free((char*)weapon_json_path);
 		}
 
-		free((char*)weapon_path);
-		_pwml_weapon_free(weapon);
+		free((char*)path);
 	}
 
 	free((char*)vanilla_mod_path);
