@@ -165,6 +165,13 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 
 
 
+static const char* __pwml_get_vanilla_mod_data_folder(PWML* pwml) {
+	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
+	const char* vanilla_mod_data = g_build_filename(vanilla_mod_path, PWML_MOD_DATA_FOLDER, NULL);
+	free((char*)vanilla_mod_path);
+	return vanilla_mod_data;
+}
+
 static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 	GHashTable* weapons = _pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
 	if (!weapons) {
@@ -172,8 +179,7 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 		return false;
 	}
 
-	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
-	const char* vanilla_mod_data = g_build_filename(vanilla_mod_path, PWML_MOD_DATA_FOLDER, NULL);
+	const char* vanilla_mod_data = __pwml_get_vanilla_mod_data_folder(pwml);
 	const char* vanilla_mod_weapons = g_build_filename(vanilla_mod_data, PWML_WEAPONS_FOLDER, NULL);
 
 	if (g_mkdir_with_parents(vanilla_mod_weapons, 0755) == -1) {
@@ -223,9 +229,39 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 		free((char*)path);
 	}
 
-	free((char*)vanilla_mod_path);
 	free((char*)vanilla_mod_data);
 	free((char*)vanilla_mod_weapons);
+
+	return true;
+}
+
+static bool __pwml_clone_vanilla_levels(PWML* pwml) {
+	const char* vanilla_mod_data = __pwml_get_vanilla_mod_data_folder(pwml);
+	const char* vanilla_mod_levels = g_build_filename(vanilla_mod_data, PWML_LEVELS_FOLDER, NULL);
+	
+	if (g_mkdir_with_parents(vanilla_mod_levels, 0755) == -1) {
+		g_print("Failed to make vanilla levels directory\n");
+		return false;
+	};
+
+	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_LEVELS_FOLDER));
+	for (uint i = 0; i < files->len; i++) {
+		const char* path = g_ptr_array_index(files, i);
+
+		const char* basename = g_path_get_basename(path);
+		if (g_str_equal(basename, "received")) {
+			free((char*)basename);
+			continue;
+		}
+		free((char*)basename);
+
+		_file_utils_copy_recursive(path, vanilla_mod_levels);
+	}
+
+	g_ptr_array_free(files, true);
+
+	free((char*)vanilla_mod_data);
+	free((char*)vanilla_mod_levels);
 
 	return true;
 }
@@ -233,6 +269,12 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 static void _pwml_clone_vanilla(PWML* pwml) {
 	if (!__pwml_clone_vanilla_weapons(pwml)) {
 		g_printerr("Vanilla weapon cloning failed\n");
+		return;
+	}
+
+	if (!__pwml_clone_vanilla_levels(pwml)) {
+		g_printerr("Vanilla level cloning failed\n");
+		return;
 	}
 }
 

@@ -95,7 +95,9 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 		}
 		g_queue_free(queued_files);
 	} else {
-		_copy_file_with_path(source_path, destination_path);
+		const char* destination_file_path = g_build_filename(destination_path, base, NULL);
+		_copy_file_with_path(source_path, destination_file_path);
+		free((char*)destination_file_path);
 	}
 
 	free((char*)base);
