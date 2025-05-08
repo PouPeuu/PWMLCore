@@ -266,6 +266,24 @@ static bool __pwml_clone_vanilla_levels(PWML* pwml) {
 	return true;
 }
 
+static bool __pwml_clone_vanilla_objects(PWML* pwml) {
+	const char* vanilla_mod_data = __pwml_get_vanilla_mod_data_folder(pwml);
+	const char* vanilla_mod_objects = g_build_filename(vanilla_mod_data, PWML_OBJECTS_FOLDER, NULL);
+	
+	if (g_mkdir_with_parents(vanilla_mod_objects, 0755) == -1) {
+		g_print("Failed to make vanilla objects directory\n");
+		return false;
+	};
+
+	const char* objects_path = pwml_get_full_path(pwml, PWML_OBJECTS_FOLDER);
+	_file_utils_copy_all(objects_path, vanilla_mod_objects);
+
+	free((char*)vanilla_mod_data);
+	free((char*)vanilla_mod_objects);
+
+	return true;
+}
+
 static void _pwml_clone_vanilla(PWML* pwml) {
 	if (!__pwml_clone_vanilla_weapons(pwml)) {
 		g_printerr("Vanilla weapon cloning failed\n");
@@ -274,6 +292,11 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 
 	if (!__pwml_clone_vanilla_levels(pwml)) {
 		g_printerr("Vanilla level cloning failed\n");
+		return;
+	}
+
+	if (!__pwml_clone_vanilla_objects(pwml)) {
+		g_printerr("Vanilla object cloning failed\n");
 		return;
 	}
 }
