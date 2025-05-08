@@ -303,6 +303,36 @@ static bool __pwml_clone_vanilla_music(PWML* pwml) {
 }
 
 static void _pwml_clone_vanilla(PWML* pwml) {
+	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
+
+	if (g_mkdir_with_parents(vanilla_mod_path, 0755) == -1) {
+		g_printerr("Failed to make vanilla mod folder at %s\n", vanilla_mod_path);
+		return;
+	}
+
+	json_object* root = json_object_new_object();
+
+	json_object* name = json_object_new_string("Vanilla");
+	json_object_object_add(root, "name", name);
+
+	json_object* description = json_object_new_string("Base Wings 2 by Miika Virpioja et al.");
+	json_object_object_add(root, "description", description);
+
+	const char* metadata_path = g_build_filename(vanilla_mod_path, PWML_METADATA_JSON, NULL);
+
+	const char* json_str = json_object_to_json_string_ext(root, JSON_C_TO_STRING_PLAIN);
+
+	GError* error = NULL;
+	g_file_set_contents(metadata_path, json_str, -1, &error);
+	if (error) {
+		g_printerr("Failed to write vanilla mod metadata json at %s\nGError: %s\n", metadata_path, error->message);
+		g_free(error);
+	}
+
+	json_object_put(root);
+	free((char*)metadata_path);
+	free((char*)json_str);
+
 	if (!__pwml_clone_vanilla_weapons(pwml)) {
 		g_printerr("Vanilla weapon cloning failed\n");
 		return;
@@ -322,6 +352,8 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 		g_printerr("Vanilla music cloning failed\n");
 		return;
 	}
+
+	free((char*)vanilla_mod_path);
 }
 
 
