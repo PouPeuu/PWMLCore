@@ -8,6 +8,7 @@ LIB_INSTALL_DIRECTORY="/usr/local/lib"
 INCLUDE_INSTALL_DIRECTORY="/usr/local/include"
 NAME="PWML"
 PKG_CONFIG_DEPENDENCIES="glib-2.0 json-c"
+EXTRA_FLAGS="-g $(xml2-config --cflags --libs)"
 
 RETURN_WORKING_DIRECTORY=$(pwd)
 cd /home/poupeuu/Coding/C/PWML/PWMLCore
@@ -21,7 +22,7 @@ fi
 echo Compiling object files
 for src in "$SOURCE_DIRECTORY"/*.c; do
     obj_name="$(basename "$src" .c).o"
-    gcc -g -I"$INCLUDE_DIRECTORY" -c "$src" -o "build/$obj_name" $(pkg-config --cflags --libs $PKG_CONFIG_DEPENDENCIES)
+    gcc -I"$INCLUDE_DIRECTORY" -c "$src" -o "build/$obj_name" $(pkg-config --cflags --libs $PKG_CONFIG_DEPENDENCIES) $EXTRA_FLAGS
 done
 
 echo Creating static library

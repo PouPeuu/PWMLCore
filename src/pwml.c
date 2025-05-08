@@ -266,38 +266,22 @@ static bool __pwml_clone_vanilla_levels(PWML* pwml) {
 	return true;
 }
 
-static bool __pwml_clone_vanilla_objects(PWML* pwml) {
+static bool __pwml_clone_vanilla_folder_simple(PWML* pwml, const char* folder) {
 	const char* vanilla_mod_data = __pwml_get_vanilla_mod_data_folder(pwml);
-	const char* vanilla_mod_objects = g_build_filename(vanilla_mod_data, PWML_OBJECTS_FOLDER, NULL);
-	
-	if (g_mkdir_with_parents(vanilla_mod_objects, 0755) == -1) {
-		g_print("Failed to make vanilla objects directory\n");
+	const char* vanilla_mod_folder_path = g_build_filename(vanilla_mod_data, folder, NULL);
+
+	if (g_mkdir_with_parents(vanilla_mod_folder_path, 0755) == -1) {
+		g_printerr("Failed to clone %s\n", folder);
+		free((char*)vanilla_mod_data);
+		free((char*)vanilla_mod_folder_path);
 		return false;
-	};
+	}
+	const char* folder_path = pwml_get_full_path(pwml, folder);
+	_file_utils_copy_all(folder_path, vanilla_mod_folder_path);
 
-	const char* objects_path = pwml_get_full_path(pwml, PWML_OBJECTS_FOLDER);
-	_file_utils_copy_all(objects_path, vanilla_mod_objects);
-
+	free((char*)folder_path);
 	free((char*)vanilla_mod_data);
-	free((char*)vanilla_mod_objects);
-
-	return true;
-}
-
-static bool __pwml_clone_vanilla_music(PWML* pwml) {
-	const char* vanilla_mod_data = __pwml_get_vanilla_mod_data_folder(pwml);
-	const char* vanilla_mod_music = g_build_filename(vanilla_mod_data, PWML_MUSIC_FOLDER, NULL);
-	
-	if (g_mkdir_with_parents(vanilla_mod_music, 0755) == -1) {
-		g_print("Failed to make vanilla music directory\n");
-		return false;
-	};
-
-	const char* music_path = pwml_get_full_path(pwml, PWML_MUSIC_FOLDER);
-	_file_utils_copy_all(music_path, vanilla_mod_music);
-
-	free((char*)vanilla_mod_data);
-	free((char*)vanilla_mod_music);
+	free((char*)vanilla_mod_folder_path);
 
 	return true;
 }
@@ -342,13 +326,23 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 		return;
 	}
 
-	if (!__pwml_clone_vanilla_objects(pwml)) {
+	if (!__pwml_clone_vanilla_folder_simple(pwml, PWML_OBJECTS_FOLDER)) {
 		g_printerr("Vanilla object cloning failed\n");
 		return;
 	}
 
-	if (!__pwml_clone_vanilla_music(pwml)) {
+	if (!__pwml_clone_vanilla_folder_simple(pwml, PWML_SOUND_FOLDER)) {
+		g_printerr("Vanilla sound cloning failed\n");
+		return;
+	}
+
+	if (!__pwml_clone_vanilla_folder_simple(pwml, PWML_MUSIC_FOLDER)) {
 		g_printerr("Vanilla music cloning failed\n");
+		return;
+	}
+	
+	if (!__pwml_clone_vanilla_folder_simple(pwml, PWML_GRAPHICS_FOLDER)) {
+		g_printerr("Vanilla graphics cloning failed\n");
 		return;
 	}
 
