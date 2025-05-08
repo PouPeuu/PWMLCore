@@ -83,6 +83,8 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 					char* file = g_ptr_array_index(files, i);
 					g_queue_push_head(queued_files, file);
 				}
+				// FIXME: No free? If you add free, then test because this place had problems before
+				// Nevermind it pushes it to queued_files which does free it
 				g_ptr_array_free(files, false);
 			} else {
 				_copy_file_with_path(current_path, file_destination);
@@ -97,4 +99,12 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 	}
 
 	free((char*)base);
+}
+
+void _file_utils_copy_all(const char *from, const char *to) {
+	GPtrArray* files = _list_files_in_directory(from);
+	for (uint i = 0; i < files->len; i++) {
+		const char* path = g_ptr_array_index(files, i);
+		_file_utils_copy_recursive(path, to);
+	}
 }

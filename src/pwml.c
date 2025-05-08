@@ -20,8 +20,11 @@ const char* const PWML_MUSIC_FOLDER = "music";
 const char* const PWML_LEVELS_FOLDER = "levels";
 const char* const PWML_GRAPHICS_FOLDER = "graphics";
 
-const char* const PWML_METADATA_JSON_NAME = "metadata.json";
+const char* const PWML_METADATA_JSON = "metadata.json";
 const char* const PWML_ACTIVE_MODS_JSON = "active_mods.json";
+const char* const PWML_WEAPON_JSON = "weapon.json";
+
+const char* const PWML_MOD_DATA_FOLDER = "data";
 
 static bool _pwml_ensure_folder(PWML* pwml, const char* path) {
 	if (g_mkdir_with_parents(g_build_filename(pwml->working_directory, path, NULL), 0755) == -1) {
@@ -169,6 +172,12 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 	}
 
 	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
+	const char* vanilla_mod_data = g_build_filename(vanilla_mod_path, PWML_MOD_DATA_FOLDER, NULL);
+	const char* vanilla_mod_weapons = g_build_filename(vanilla_mod_data, PWML_WEAPONS_FOLDER, NULL);
+
+	if (g_mkdir_with_parents(vanilla_mod_weapons, 0755) == -1) {
+		g_print("Failed to make vanilla weapons directory\n");
+	};
 
 	GHashTableIter iterator;
 	g_hash_table_iter_init(&iterator, weapons);
@@ -176,14 +185,41 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 	gpointer key, value;
 	while (g_hash_table_iter_next(&iterator, &key, &value)) {
 		_PWML_Weapon* weapon = (_PWML_Weapon*)value;
+
 		const char* weapon_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, weapon->name, NULL);
-		if (_is_dir(weapon_path))
-			_file_utils_copy_recursive(weapon_path, vanilla_mod_path);
+		if (_is_dir(weapon_path)) {
+			_file_utils_copy_recursive(weapon_path, vanilla_mod_weapons);
+	
+			const char *weapon_json_path = g_build_filename(weapon_path, PWML_WEAPON_JSON, NULL);
+			
+			json_object *root = json_object_new_object();
+	
+			json_object *ship = json_object_new_boolean(weapon->ship);
+			json_object_object_add(root, "ship", ship);
+	
+			json_object *pilot = json_object_new_boolean(weapon->pilot);
+			json_object_object_add(root, "pilot", pilot);
+	
+			const char* json_str = json_object_to_json_string_ext(root, JSON_C_TO_STRING_PLAIN);
+	
+			GError* error = NULL;
+			g_file_set_contents(weapon_json_path, json_str, -1, &error);
+			if (error) {
+				g_printerr("Failed to write weapon json at %s\nGError: %s\n", weapon_json_path, error->message);
+				g_free(error);
+			}
+	
+			json_object_put(root);
+			free((char*)weapon_json_path);
+		}
+
 		free((char*)weapon_path);
 		_pwml_weapon_free(weapon);
 	}
 
 	free((char*)vanilla_mod_path);
+	free((char*)vanilla_mod_data);
+	free((char*)vanilla_mod_weapons);
 }
 
 void pwml_free(PWML* pwml) {
@@ -230,7 +266,7 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	char* buffer;
 	GError *error = NULL;
 
-	const char* metadata_path = g_build_filename(mod->path, PWML_METADATA_JSON_NAME, NULL);
+	const char* metadata_path = g_build_filename(mod->path, PWML_METADATA_JSON, NULL);
 	if (!g_file_test(metadata_path, G_FILE_TEST_EXISTS)) {
 		g_printerr("Missing metadata for mod %s\n", mod->id);
 		pwml_mod_free(mod);
