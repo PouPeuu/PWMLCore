@@ -222,6 +222,8 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 				g_free(error);
 			}
 
+			json_object_put(root);
+
 			free((char*)name);
 			free((char*)weapon_json_path);
 		}
@@ -376,8 +378,26 @@ PWML* pwml_new(const char *working_directory) {
 		return NULL;
 	}
 
-	if (!g_file_test(g_build_filename(pwml->working_directory, PWML_ACTIVE_MODS_JSON, NULL), G_FILE_TEST_EXISTS)) {
+	const char* active_mods_json_path = g_build_filename(pwml->working_directory, PWML_ACTIVE_MODS_JSON, NULL);
+	if (!g_file_test(active_mods_json_path, G_FILE_TEST_EXISTS)) {
 		_pwml_clone_vanilla(pwml);
+
+		json_object* root = json_object_new_object();
+
+		json_object* active = json_object_new_array();
+		json_object_array_add(active, json_object_new_string("vanilla"));
+		json_object_object_add(root, "active", active);
+
+		const char* json_str = json_object_to_json_string_ext(root, JSON_C_TO_STRING_PLAIN);
+
+		GError* error = NULL;
+		g_file_set_contents(active_mods_json_path, json_str, -1, &error);
+		if (error) {
+			g_printerr("Failed to write active_mods.json: %s\n", error->message);
+			g_free(error);
+		}
+
+		json_object_put(root);
 	}
 
 	pwml_load_mods(pwml);
