@@ -163,12 +163,13 @@ static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
 	return weapons;
 }
 
-static void _pwml_clone_vanilla(PWML* pwml) {
-	int check_n = 0;
+
+
+static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 	GHashTable* weapons = _pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
 	if (!weapons) {
 		g_printerr("Failed to retrieve vanilla weapons\n");
-		return;
+		return false;
 	}
 
 	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
@@ -177,6 +178,7 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 
 	if (g_mkdir_with_parents(vanilla_mod_weapons, 0755) == -1) {
 		g_print("Failed to make vanilla weapons directory\n");
+		return false;
 	};
 
 	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER));
@@ -224,7 +226,17 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 	free((char*)vanilla_mod_path);
 	free((char*)vanilla_mod_data);
 	free((char*)vanilla_mod_weapons);
+
+	return true;
 }
+
+static void _pwml_clone_vanilla(PWML* pwml) {
+	if (!__pwml_clone_vanilla_weapons(pwml)) {
+		g_printerr("Vanilla weapon cloning failed\n");
+	}
+}
+
+
 
 void pwml_free(PWML* pwml) {
 	free((char*)pwml->working_directory);
