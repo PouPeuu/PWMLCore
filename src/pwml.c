@@ -62,7 +62,7 @@ typedef enum {
 	PILOT_STAGE
 } _PWML_WeaponsDatStage;
 
-static GHashTable* _pwml_get_weapons(PWML* pwml, const char* weapons_path) {
+static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path) {
 	const char* full_path = pwml_get_full_path(pwml, weapons_path);
 	char* contents;
 	GError* error = NULL;
@@ -172,7 +172,7 @@ static const char* __pwml_get_vanilla_mod_data_folder(PWML* pwml) {
 }
 
 static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
-	GHashTable* weapons = _pwml_get_weapons(pwml, PWML_WEAPONS_FOLDER);
+	GHashTable* weapons = _pwml_parse_weapons_dat(pwml, PWML_WEAPONS_FOLDER);
 	if (!weapons) {
 		g_printerr("Failed to retrieve vanilla weapons\n");
 		return false;
@@ -232,6 +232,7 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 
 	free((char*)vanilla_mod_data);
 	free((char*)vanilla_mod_weapons);
+	g_hash_table_destroy(weapons);
 
 	return true;
 }
