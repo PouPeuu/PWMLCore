@@ -355,11 +355,7 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 
 void pwml_free(PWML* pwml) {
 	free((char*)pwml->working_directory);
-
-	for (uint i = 0; i < pwml->n_mods; i++) {
-		pwml_mod_free(&pwml->mods[i]);
-	}
-	free(pwml->mods);
+	g_hash_table_destroy(pwml->mods);
 	free(pwml);
 }
 
@@ -371,7 +367,7 @@ PWML* pwml_new(const char *working_directory) {
 
 	pwml->working_directory = g_strdup(working_directory);
 	pwml->n_mods = 0;
-	pwml->mods = NULL;
+	pwml->mods = g_hash_table_new(g_str_hash, g_str_equal);
 	
 	if (!_pwml_ensure_folder(pwml, PWML_MODS_FOLDER)) {
 		pwml_free(pwml);
@@ -519,31 +515,14 @@ void pwml_load_mods(PWML* pwml) {
 	GHashTable* active_mods = _pwml_get_active_mods(pwml);
 	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_MODS_FOLDER));
 	
-	uint real_n = files->len;
-	uint mod_error_offset = 0;
-	pwml->mods = malloc(files->len * sizeof(PWML_Mod));
 	for (uint i = 0; i < files->len; i++) {
 		PWML_Mod* mod = _pwml_load_mod(pwml, g_ptr_array_index(files, i));
 		if (mod) {
 			if (g_hash_table_contains(active_mods, mod->id))
 				mod->active = true;
-			pwml->mods[i - mod_error_offset] = *mod;
 
-			// Notes for self:
-			// The mod is dereferenced (*mod) when being added to the array, so the mods array contains the actual data.
-			// Doing free(mod) instead of pwml_mod_free(mod) to avoid destroying the strings
-			// Thus, this is fine
-			free(mod);
-		} else {
-			real_n--;
-			mod_error_offset++;
+			g_hash_table_insert(pwml->mods, strdup(mod->id), mod);
 		}
-	}
-
-	pwml->n_mods = real_n;
-
-	if (real_n != files->len) {
-		pwml->mods = realloc(pwml->mods, real_n * sizeof(PWML_Mod));
 	}
 
 	g_ptr_array_free(files, true);
@@ -551,7 +530,15 @@ void pwml_load_mods(PWML* pwml) {
 		g_hash_table_destroy(active_mods);
 }
 
-PWML_Mod* pwml_list_mods(PWML* pwml, uint* n_mods) {
-	*n_mods = pwml->n_mods;
-	return pwml->mods;
+GPtrArray* pwml_list_mods(PWML* pwml) {
+	GPtrArray* mods = g_ptr_array_new();
+	GHashTableIter iter;
+	g_hash_table_iter_init(&iter, pwml->mods);
+
+	PWML_Mod* mod;
+	while (g_hash_table_iter_next(&iter, NULL, (void**)&mod)) {
+		g_ptr_array_add(mods, mod);
+	}
+
+	return mods;
 }

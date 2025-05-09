@@ -24,14 +24,14 @@ extern const char* const PWML_MOD_DATA_FOLDER;
 typedef struct PWML {
 	const char* working_directory;
 	uint n_mods;
-	PWML_Mod* mods;
+	GHashTable* mods;
 } PWML;
 
 PWML* pwml_new(const char *working_directory);
 void pwml_free(PWML* pwml);
 
 const char* pwml_get_full_path(PWML* pwml, const char* path);
-PWML_Mod* pwml_list_mods(PWML* pwml, uint* n_mods);
+GPtrArray* pwml_list_mods(PWML* pwml);
 void pwml_load_mods(PWML* pwml);
 
 #endif
