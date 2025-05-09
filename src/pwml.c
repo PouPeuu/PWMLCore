@@ -2,7 +2,6 @@
 #include "PWML/file_utils.h"
 #include "PWML/mod.h"
 #include "PWML/weapon.h"
-#include <glib.h>
 #include <json-c/json_object.h>
 #include <json-c/json_tokener.h>
 #include <json-c/json_types.h>

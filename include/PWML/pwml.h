@@ -2,11 +2,24 @@
 #define PWML_H
 
 #include "PWML/mod.h"
+#include <glib.h>
 #include <sys/types.h>
 #include <stdbool.h>
 
 extern const char* const PWML_MODS_FOLDER;
-extern const char* const PWML_METADATA_JSON_NAME;
+
+extern const char* const PWML_WEAPONS_FOLDER;
+extern const char* const PWML_SOUND_FOLDER;
+extern const char* const PWML_OBJECTS_FOLDER;
+extern const char* const PWML_MUSIC_FOLDER;
+extern const char* const PWML_LEVELS_FOLDER;
+extern const char* const PWML_GRAPHICS_FOLDER;
+
+extern const char* const PWML_METADATA_JSON;
+extern const char* const PWML_ACTIVE_MODS_JSON;
+extern const char* const PWML_WEAPON_JSON;
+
+extern const char* const PWML_MOD_DATA_FOLDER;
 
 typedef struct PWML {
 	const char* working_directory;
