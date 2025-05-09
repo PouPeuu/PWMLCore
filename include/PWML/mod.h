@@ -3,6 +3,8 @@
 
 #include <stdbool.h>
 
+typedef struct PWML PWML;
+
 typedef struct {
 	const char* path;
 	const char* id;
@@ -12,5 +14,7 @@ typedef struct {
 } PWML_Mod;
 
 void pwml_mod_free(PWML_Mod* mod);
+
+void _pwml_mod_apply(PWML* pwml, PWML_Mod* mod);
 
 #endif
