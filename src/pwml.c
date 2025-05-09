@@ -189,7 +189,7 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER));
 	for (uint i = 0; i < files->len; i++) {
 		const char* path = g_ptr_array_index(files, i);
-		if (_is_dir(path)) {
+		if (_file_utils_is_dir(path)) {
 			_PWML_Weapon* weapon;
 			const char* name = g_path_get_basename(path);
 			if (g_hash_table_contains(weapons, name)) {

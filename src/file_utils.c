@@ -9,7 +9,7 @@
 
 const GFileCopyFlags FLAGS = G_FILE_COPY_OVERWRITE | G_FILE_COPY_ALL_METADATA | G_FILE_COPY_NOFOLLOW_SYMLINKS;
 
-bool _is_dir(const char* path) {
+bool _file_utils_is_dir(const char* path) {
 	return g_file_test(path, G_FILE_TEST_IS_DIR);
 }
 
@@ -57,7 +57,7 @@ GPtrArray* _list_files_in_directory(const char* path) {
 void _file_utils_copy_recursive(const char* source_path, const char* destination_path) {
 	const char* base = g_path_get_basename(source_path);
 
-	if (_is_dir(source_path)) {
+	if (_file_utils_is_dir(source_path)) {
 		const char* temp = g_build_filename(destination_path, base, NULL);
 		g_mkdir_with_parents(temp, 0755);
 		free((char*)temp);
@@ -76,7 +76,7 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 			
 			const char* file_destination = g_build_filename(destination_path, relative_path, NULL);
 
-			if (_is_dir(current_path)) {
+			if (_file_utils_is_dir(current_path)) {
 				g_mkdir_with_parents(file_destination, 0755);
 				GPtrArray* files = _list_files_in_directory(current_path);
 				for (uint i = 0; i < files->len; i++) {
