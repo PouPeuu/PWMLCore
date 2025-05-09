@@ -411,9 +411,10 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	mod->id = g_path_get_basename(path);
 	mod->name = NULL;
 	mod->description = NULL;
+	mod->active = false;
 	
 	char* buffer;
-	GError *error = NULL;
+	GError* error = NULL;
 
 	const char* metadata_path = g_build_filename(mod->path, PWML_METADATA_JSON, NULL);
 	if (!g_file_test(metadata_path, G_FILE_TEST_EXISTS)) {
@@ -431,7 +432,7 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 		return NULL;
 	}
 
-	struct json_object *parsed_json = json_tokener_parse(buffer);
+	json_object* parsed_json = json_tokener_parse(buffer);
 	free(buffer);
 
 	if (!parsed_json) {
@@ -467,7 +468,55 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	return mod;
 }
 
+static GHashTable* _pwml_get_active_mods(PWML* pwml) {
+	GHashTable* active_mods = g_hash_table_new(g_str_hash, g_str_equal);
+
+	const char* active_mods_json_path = pwml_get_full_path(pwml, PWML_ACTIVE_MODS_JSON);
+	if (g_file_test(active_mods_json_path, G_FILE_TEST_EXISTS)) {
+		char* buffer;
+		GError* error = NULL;
+
+		if (!g_file_get_contents(active_mods_json_path, &buffer, NULL, &error)){
+			g_printerr("Failed to read active_mods.json at %s\n", active_mods_json_path);
+			g_error_free(error);
+			g_hash_table_destroy(active_mods);
+			return NULL;
+		}
+ 
+		json_object* root = json_tokener_parse(buffer);
+		free(buffer);
+
+		if (!root) {
+			g_printerr("Failed to parse active_mods.json at %s\n", active_mods_json_path);
+			return NULL;
+		}
+
+		json_object* j_active_mods;
+		if (!json_object_object_get_ex(root, "active", &j_active_mods) || json_object_get_type(j_active_mods) != json_type_array) {
+			json_object_put(root);
+			g_printerr("Couldn't get array of active mods from %s\n", active_mods_json_path);
+			g_hash_table_destroy(active_mods);
+			return NULL;
+		}
+
+		int len = json_object_array_length(j_active_mods);
+		for (uint i = 0; i < len; i++) {
+			json_object* name = json_object_array_get_idx(j_active_mods, i);
+			if (json_object_get_type(name) != json_type_string)
+				continue;
+			
+			g_hash_table_add(active_mods, strdup(json_object_get_string(name)));
+		}
+
+		json_object_put(root);
+	}
+	free((char*)active_mods_json_path);
+
+	return active_mods;
+}
+
 void pwml_load_mods(PWML* pwml) {
+	GHashTable* active_mods = _pwml_get_active_mods(pwml);
 	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_MODS_FOLDER));
 	
 	uint real_n = files->len;
@@ -476,7 +525,14 @@ void pwml_load_mods(PWML* pwml) {
 	for (uint i = 0; i < files->len; i++) {
 		PWML_Mod* mod = _pwml_load_mod(pwml, g_ptr_array_index(files, i));
 		if (mod) {
+			if (g_hash_table_contains(active_mods, mod->id))
+				mod->active = true;
 			pwml->mods[i - mod_error_offset] = *mod;
+
+			// Notes for self:
+			// The mod is dereferenced (*mod) when being added to the array, so the mods array contains the actual data.
+			// Doing free(mod) instead of pwml_mod_free(mod) to avoid destroying the strings
+			// Thus, this is fine
 			free(mod);
 		} else {
 			real_n--;
@@ -491,6 +547,8 @@ void pwml_load_mods(PWML* pwml) {
 	}
 
 	g_ptr_array_free(files, true);
+	if (active_mods)
+		g_hash_table_destroy(active_mods);
 }
 
 PWML_Mod* pwml_list_mods(PWML* pwml, uint* n_mods) {
