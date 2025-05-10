@@ -34,4 +34,7 @@ const char* pwml_get_full_path(PWML* pwml, const char* path);
 GPtrArray* pwml_list_mods(PWML* pwml);
 void pwml_load_mods(PWML* pwml);
 
+void pwml_set_mod_active(PWML* pwml, const char* id, bool active);
+bool pwml_is_mod_active(PWML* pwml, const char* id);
+
 #endif

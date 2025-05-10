@@ -2,6 +2,7 @@
 #include "PWML/file_utils.h"
 #include "PWML/mod.h"
 #include "PWML/weapon.h"
+#include <glib.h>
 #include <json-c/json_object.h>
 #include <json-c/json_tokener.h>
 #include <json-c/json_types.h>
@@ -541,4 +542,23 @@ GPtrArray* pwml_list_mods(PWML* pwml) {
 	}
 
 	return mods;
+}
+
+void pwml_set_mod_active(PWML *pwml, const char *id, bool active) {
+	if (g_hash_table_contains(pwml->mods, id)) {
+		PWML_Mod* mod = g_hash_table_lookup(pwml->mods, id);
+		mod->active = active;
+	} else {
+		char activity[11];
+		if (active)
+			strcpy(activity, "activate");
+		else
+			strcpy(activity, "deactivate");
+
+		g_printerr("Couldn't %s mod %s; No such mod exists.\n", activity, id);
+	}
+}
+
+bool pwml_is_mod_active(PWML *pwml, const char *id) {
+	return g_hash_table_contains(pwml->mods, id) ? ((PWML_Mod*)g_hash_table_lookup(pwml->mods, id))->active : false;
 }
