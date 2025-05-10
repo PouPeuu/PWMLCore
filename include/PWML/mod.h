@@ -9,6 +9,7 @@ typedef struct {
 	const char* path;
 	const char* id;
 	const char* name;
+	const char* short_description;
 	const char* description;
 	bool active;
 } PWML_Mod;

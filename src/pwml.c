@@ -21,6 +21,8 @@ const char* const PWML_LEVELS_FOLDER = "levels";
 const char* const PWML_GRAPHICS_FOLDER = "graphics";
 
 const char* const PWML_METADATA_JSON = "metadata.json";
+const char* const PWML_MOD_DESCRIPTION_FILE = "description.pango";
+
 const char* const PWML_ACTIVE_MODS_JSON = "active_mods.json";
 const char* const PWML_WEAPON_JSON = "weapon.json";
 
@@ -303,7 +305,7 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 	json_object_object_add(root, "name", name);
 
 	json_object* description = json_object_new_string("Base Wings 2 by Miika Virpioja et al.");
-	json_object_object_add(root, "description", description);
+	json_object_object_add(root, "short_description", description);
 
 	const char* metadata_path = g_build_filename(vanilla_mod_path, PWML_METADATA_JSON, NULL);
 
@@ -407,6 +409,7 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	mod->path = g_strdup(path);
 	mod->id = g_path_get_basename(path);
 	mod->name = NULL;
+	mod->short_description = NULL;
 	mod->description = NULL;
 	mod->active = false;
 	
@@ -447,8 +450,8 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 		free((char*)metadata_path);
 		return NULL;
 	}
-	if (!json_object_object_get_ex(parsed_json, "description", &description)) {
-		g_printerr("Missing description field in %s\n", metadata_path);
+	if (!json_object_object_get_ex(parsed_json, "short_description", &description)) {
+		g_printerr("Missing short_description field in %s\n", metadata_path);
 		pwml_mod_free(mod);
 		json_object_put(parsed_json);
 		free((char*)metadata_path);
@@ -458,7 +461,7 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	free((char*)metadata_path);
 
 	mod->name = g_strdup(json_object_get_string(name));
-	mod->description = g_strdup(json_object_get_string(description));
+	mod->short_description = g_strdup(json_object_get_string(description));
 
 	json_object_put(parsed_json);
 
@@ -561,4 +564,28 @@ void pwml_set_mod_active(PWML *pwml, const char *id, bool active) {
 
 bool pwml_is_mod_active(PWML *pwml, const char *id) {
 	return g_hash_table_contains(pwml->mods, id) ? ((PWML_Mod*)g_hash_table_lookup(pwml->mods, id))->active : false;
+}
+
+const char* pwml_get_mod_description(PWML* pwml, const char* id) {
+	if (!g_hash_table_contains(pwml->mods, id)) {
+		g_printerr("Couldn't get name of mod with id %s; No such mod exists.\n", id);
+	}
+	PWML_Mod* mod = g_hash_table_lookup(pwml->mods, id);
+	if (!mod->description) {
+		const char* path = g_build_filename(mod->path, PWML_MOD_DESCRIPTION_FILE, NULL);
+		if (!g_file_test(path, G_FILE_TEST_EXISTS))
+			return NULL;
+
+		GError* error = NULL;
+		char* buffer;
+
+		g_file_get_contents(path, &buffer, NULL, &error);
+		if (error) {
+			g_print("<span foreground=\"red\"><b>Error:</b></span> failed to read description file at %s\n\nGError->message = %s", path, error->message);
+			return NULL;
+		}
+
+		mod->description = buffer;
+	}
+	return mod->description;
 }
