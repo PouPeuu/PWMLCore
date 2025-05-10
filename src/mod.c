@@ -20,7 +20,7 @@ void pwml_mod_free(PWML_Mod *mod) {
 }
 
 static GPtrArray* __pwml_mod_get_weapons(PWML* pwml, PWML_Mod* mod) {
-	const char* weapons_path = g_build_filename(mod->path, PWML_WEAPONS_FOLDER, NULL);
+	const char* weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
 	GPtrArray* files = _list_files_in_directory(weapons_path);
 
 	GPtrArray* weapons = g_ptr_array_new_with_free_func(_pwml_weapon_free);
@@ -92,7 +92,7 @@ static GPtrArray* __pwml_mod_get_weapons(PWML* pwml, PWML_Mod* mod) {
 }
 
 static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
-	const char* mod_weapons_path = g_build_filename(mod->path, PWML_WEAPONS_FOLDER, NULL);
+	const char* mod_weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
 	const char* game_weapons_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, NULL);
 	GPtrArray* weapons = __pwml_mod_get_weapons(pwml, mod);
 
@@ -129,5 +129,11 @@ static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
 }
 
 void _pwml_mod_apply(PWML* pwml, PWML_Mod* mod) {
-	__pwml_mod_apply_weapons(pwml, mod);
+	const char* mod_weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
+
+	if (g_file_test(mod_weapons_path, G_FILE_TEST_IS_DIR)) {
+		__pwml_mod_apply_weapons(pwml, mod);
+	}
+	
+	free((char*)mod_weapons_path);
 }

@@ -362,7 +362,7 @@ void pwml_free(PWML* pwml) {
 	free(pwml);
 }
 
-PWML* pwml_new(const char *working_directory) {
+PWML* pwml_new(const char* working_directory) {
 	if (!g_file_test(working_directory, G_FILE_TEST_IS_DIR))
 		return NULL;
 
@@ -541,13 +541,13 @@ GPtrArray* pwml_list_mods(PWML* pwml) {
 
 	PWML_Mod* mod;
 	while (g_hash_table_iter_next(&iter, NULL, (void**)&mod)) {
-		g_ptr_array_add(mods, mod);
+		g_ptr_array_add(mods, strdup(mod->id));
 	}
 
 	return mods;
 }
 
-void pwml_set_mod_active(PWML *pwml, const char *id, bool active) {
+void pwml_set_mod_active(PWML* pwml, const char* id, bool active) {
 	if (g_hash_table_contains(pwml->mods, id)) {
 		PWML_Mod* mod = g_hash_table_lookup(pwml->mods, id);
 		mod->active = active;
@@ -562,8 +562,15 @@ void pwml_set_mod_active(PWML *pwml, const char *id, bool active) {
 	}
 }
 
-bool pwml_is_mod_active(PWML *pwml, const char *id) {
+bool pwml_is_mod_active(PWML* pwml, const char* id) {
 	return g_hash_table_contains(pwml->mods, id) ? ((PWML_Mod*)g_hash_table_lookup(pwml->mods, id))->active : false;
+}
+
+const char* pwml_get_mod_name(PWML* pwml, const char* id) {
+	if (!g_hash_table_contains(pwml->mods, id)) {
+		g_printerr("Couldn't get name of mod with id %s; No such mod exists.\n", id);
+	}
+	return ((PWML_Mod*)g_hash_table_lookup(pwml->mods, id))->name;
 }
 
 const char* pwml_get_mod_description(PWML* pwml, const char* id) {
@@ -588,4 +595,21 @@ const char* pwml_get_mod_description(PWML* pwml, const char* id) {
 		mod->description = buffer;
 	}
 	return mod->description;
+}
+
+void pwml_apply_mods(PWML* pwml) {
+	const char* game_weapons_path = pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER);
+	_file_utils_delete_all(game_weapons_path);
+
+	GHashTableIter iter;
+	g_hash_table_iter_init(&iter, pwml->mods);
+
+	PWML_Mod* mod;
+	while (g_hash_table_iter_next(&iter, NULL, (void**)&mod)) {
+		if (mod->active) {
+			_pwml_mod_apply(pwml, mod);
+		}
+	}
+
+	free((char*)game_weapons_path);
 }
