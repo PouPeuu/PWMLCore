@@ -4,8 +4,10 @@
 #include <glib.h>
 #include <gio/gio.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <string.h>
 #include <sys/types.h>
+#include <unistd.h>
 
 const GFileCopyFlags FLAGS = G_FILE_COPY_OVERWRITE | G_FILE_COPY_ALL_METADATA | G_FILE_COPY_NOFOLLOW_SYMLINKS;
 
@@ -109,4 +111,59 @@ void _file_utils_copy_all(const char *from, const char *to) {
 		const char* path = g_ptr_array_index(files, i);
 		_file_utils_copy_recursive(path, to);
 	}
+}
+
+void _file_utils_delete_recursive(const char* path) {
+	if (!_file_utils_is_dir(path) && g_file_test(path, G_FILE_TEST_EXISTS)) {
+		remove(path);
+	}
+	if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
+		g_printerr("Cannot recursively delete %s; No such file or directory.\n", path);
+		return;
+	}
+
+	GPtrArray* directory_hitlist = g_ptr_array_new();
+	g_ptr_array_add(directory_hitlist, strdup(path));
+
+	GQueue* queue = g_queue_new();
+	g_queue_push_head(queue, strdup(path));
+
+	const char* current_path;
+	while ((current_path = g_queue_pop_head(queue))) {
+		if (_file_utils_is_dir(current_path)) {
+			GPtrArray* files = _list_files_in_directory(current_path);
+			for (uint i = 0; i < files->len; i++) {
+				const char* file = g_ptr_array_index(files, i);
+				if (_file_utils_is_dir(file)) {
+					g_queue_push_head(queue, strdup(file));
+					g_ptr_array_add(directory_hitlist, strdup(file));
+				} else {
+					remove(file);
+				}
+				free((char*)file);
+			}
+		}
+	}
+
+	for (int i = directory_hitlist->len - 1; i >= 0; i--) {
+		rmdir(g_ptr_array_index(directory_hitlist, i));
+	}
+
+	g_ptr_array_free(directory_hitlist, true);
+	g_queue_free(queue);
+}
+
+void _file_utils_delete_all(const char* path) {
+	if (!g_file_test(path, G_FILE_TEST_IS_DIR)) {
+		g_printerr("Cannot delete all from %s; No such directory exists.\n", path);
+		return;
+	}
+
+	GPtrArray* files = _list_files_in_directory(path);
+	for (uint i = 0; i < files->len; i++) {
+		const char* file = g_ptr_array_index(files, i);
+		if (_file_utils_is_dir(file))
+			_file_utils_delete_recursive(file);
+	}
+	g_ptr_array_free(files, true);
 }
