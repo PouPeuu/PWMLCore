@@ -96,10 +96,6 @@ static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
 	const char* game_weapons_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, NULL);
 	GPtrArray* weapons = __pwml_mod_get_weapons(pwml, mod);
 
-	GPtrArray* weapon_names = g_ptr_array_new();
-	GPtrArray* ship_weapon_names = g_ptr_array_new();
-	GPtrArray* pilot_weapon_names = g_ptr_array_new();
-
 	for (uint i = 0; i < weapons->len; i++) {
 		_PWML_Weapon* weapon = g_ptr_array_index(weapons, i);
 		const char* weapon_path = g_build_filename(mod_weapons_path, weapon->name, NULL);
@@ -112,19 +108,11 @@ static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
 
 		free((char*)weapon_path);
 
-		g_ptr_array_add(weapon_names, strdup(weapon->name));
-
-		if (weapon->ship) {
-			g_ptr_array_add(ship_weapon_names, strdup(weapon->name));
-		}
-		if (weapon->pilot) {
-			g_ptr_array_add(pilot_weapon_names, strdup(weapon->name));
-		}
+		g_ptr_array_add(pwml->weapons, weapon);
 	}
 
-	g_ptr_array_free(weapons, true);
+	g_ptr_array_free(weapons, false);
 	free((char*)mod_weapons_path);
-
 	free((char*)game_weapons_path);
 }
 

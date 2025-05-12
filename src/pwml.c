@@ -19,6 +19,7 @@ const char* const PWML_OBJECTS_FOLDER = "objects";
 const char* const PWML_MUSIC_FOLDER = "music";
 const char* const PWML_LEVELS_FOLDER = "levels";
 const char* const PWML_GRAPHICS_FOLDER = "graphics";
+const char* const PWML_WEAPONS_DAT = "Weapons.dat";
 
 const char* const PWML_METADATA_JSON = "metadata.json";
 const char* const PWML_MOD_DESCRIPTION_FILE = "description.pango";
@@ -70,12 +71,14 @@ static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path)
 	char* contents;
 	GError* error = NULL;
 	
-	if (!g_file_get_contents(g_build_filename(full_path, "Weapons.dat", NULL), &contents, NULL, &error)) {
+	const char* weapons_dat_path = g_build_filename(full_path, PWML_WEAPONS_DAT, NULL);
+	if (!g_file_get_contents(weapons_dat_path, &contents, NULL, &error)) {
 		g_printerr("Failed to read %s: %s\n", weapons_path, error->message);
 		g_error_free(error);
 		free((char*)full_path);
 		return NULL;
 	}
+	free((char*)weapons_dat_path);
 
 	GHashTable* weapons = g_hash_table_new_full(g_str_hash, g_str_equal, free, _pwml_weapon_free);
 
@@ -359,6 +362,7 @@ static void _pwml_clone_vanilla(PWML* pwml) {
 void pwml_free(PWML* pwml) {
 	free((char*)pwml->working_directory);
 	g_hash_table_destroy(pwml->mods);
+	g_ptr_array_free(pwml->weapons, true);
 	free(pwml);
 }
 
@@ -369,8 +373,8 @@ PWML* pwml_new(const char* working_directory) {
 	PWML* pwml = malloc(sizeof(PWML));
 
 	pwml->working_directory = g_strdup(working_directory);
-	pwml->n_mods = 0;
 	pwml->mods = g_hash_table_new(g_str_hash, g_str_equal);
+	pwml->weapons = g_ptr_array_new_with_free_func(_pwml_weapon_free);
 	
 	if (!_pwml_ensure_folder(pwml, PWML_MODS_FOLDER)) {
 		pwml_free(pwml);
@@ -597,9 +601,26 @@ const char* pwml_get_mod_description(PWML* pwml, const char* id) {
 	return mod->description;
 }
 
+static int __compare_alphabetical(const void* _a, const void* _b) {
+	const char* a = _a;
+	const char* b = _b;
+	uint i = 0;
+	while (a[i] != '\0' && b[i] != '\0') {
+		int diff = a[i] - b[i];
+		if (diff != 0) {
+			return diff;
+		}
+		i++;
+	}
+
+	return strlen(a) - strlen(b);
+}
+
 void pwml_apply_mods(PWML* pwml) {
 	const char* game_weapons_path = pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER);
 	_file_utils_delete_all(game_weapons_path);
+
+	g_ptr_array_remove_range(pwml->weapons, 0, pwml->weapons->len);
 
 	GHashTableIter iter;
 	g_hash_table_iter_init(&iter, pwml->mods);
@@ -610,6 +631,83 @@ void pwml_apply_mods(PWML* pwml) {
 			_pwml_mod_apply(pwml, mod);
 		}
 	}
+
+	//g_print("--------------\nApplying mods:\npwml->weapons->len: %u\n", pwml->weapons->len);
+
+	GPtrArray* weapon_names = g_ptr_array_new();
+	GPtrArray* ship_weapon_names = g_ptr_array_new();
+	GPtrArray* pilot_weapon_names = g_ptr_array_new();
+
+	uint weapons_dat_size = 0;
+	// Weapons:\n
+	weapons_dat_size += 9;
+	// Ship weapons:\n
+	weapons_dat_size += 14;
+	// Pilot weapons:\n
+	weapons_dat_size += 15;
+
+	for (uint i = 0; i < pwml->weapons->len; i++) {
+		_PWML_Weapon* weapon = g_ptr_array_index(pwml->weapons, i);
+
+		// +2 for the two spaces, +1 for the newline
+		uint name_size = strlen(weapon->name) + 3;
+		g_ptr_array_add(weapon_names, strdup(weapon->name));
+		weapons_dat_size += name_size;
+
+		if (weapon->ship) {
+			g_ptr_array_add(ship_weapon_names, strdup(weapon->name));
+			weapons_dat_size += name_size;
+		}
+		if (weapon->pilot) {
+			g_ptr_array_add(pilot_weapon_names, strdup(weapon->name));
+			weapons_dat_size += name_size;
+		}
+	}
+
+	g_ptr_array_sort_values(weapon_names, __compare_alphabetical);
+	g_ptr_array_sort_values(ship_weapon_names, __compare_alphabetical);
+	g_ptr_array_sort_values(pilot_weapon_names, __compare_alphabetical);
+
+	// NULL terminator
+	weapons_dat_size += 1;
+	char* weapons_dat_data = calloc(weapons_dat_size, sizeof(char));
+
+	strcat(weapons_dat_data, "Weapons:\n");
+	for (uint i = 0; i < weapon_names->len; i++) {
+		strcat(weapons_dat_data, "  ");
+		strcat(weapons_dat_data, g_ptr_array_index(weapon_names, i));
+		strcat(weapons_dat_data, "\n");
+	}
+
+	strcat(weapons_dat_data, "Ship weapons:\n");
+	for (uint i = 0; i < ship_weapon_names->len; i++) {
+		strcat(weapons_dat_data, "  ");
+		strcat(weapons_dat_data, g_ptr_array_index(ship_weapon_names, i));
+		strcat(weapons_dat_data, "\n");
+	}
+
+	strcat(weapons_dat_data, "Pilot weapons:\n");
+	for (uint i = 0; i < pilot_weapon_names->len; i++) {
+		strcat(weapons_dat_data, "  ");
+		strcat(weapons_dat_data, g_ptr_array_index(pilot_weapon_names, i));
+		strcat(weapons_dat_data, "\n");
+	}
+
+	const char* weapons_dat_path = g_build_filename(game_weapons_path, PWML_WEAPONS_DAT, NULL);
+
+	GError* error = NULL;
+	g_file_set_contents(weapons_dat_path, weapons_dat_data, -1, &error);
+	if (error) {
+		g_printerr("Failed to write weapons.dat at %s\nGError: %s\n", weapons_dat_path, error->message);
+		g_error_free(error);
+	}
+
+	free((char*)weapons_dat_path);
+	free((char*)weapons_dat_data);
+
+	g_ptr_array_free(weapon_names, true);
+	g_ptr_array_free(ship_weapon_names, true);
+	g_ptr_array_free(pilot_weapon_names, true);
 
 	free((char*)game_weapons_path);
 }

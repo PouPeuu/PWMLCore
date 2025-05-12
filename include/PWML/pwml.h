@@ -23,8 +23,8 @@ extern const char* const PWML_MOD_DATA_FOLDER;
 
 typedef struct PWML {
 	const char* working_directory;
-	uint n_mods;
 	GHashTable* mods;
+	GPtrArray* weapons;
 } PWML;
 
 PWML* pwml_new(const char *working_directory);
