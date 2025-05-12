@@ -1,5 +1,4 @@
 #include "PWML/file_utils.h"
-#include "PWML/pwml.h"
 #include "glib-object.h"
 #include <glib.h>
 #include <gio/gio.h>
@@ -33,10 +32,6 @@ void _file_utils_copy_file_with_path(const char* source, const char* destination
 	g_object_unref(source_gfile);
 	g_object_unref(destination_gfile);
 };
-
-const char* pwml_get_full_path(PWML *pwml, const char *path) {
-	return g_build_filename(pwml->working_directory, path, NULL);
-}
 
 GPtrArray* _list_files_in_directory(const char* path) {
 	GDir* dir = g_dir_open(path, 0, NULL);

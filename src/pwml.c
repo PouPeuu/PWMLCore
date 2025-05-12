@@ -38,7 +38,7 @@ static bool _pwml_ensure_folder(PWML* pwml, const char* path) {
 }
 
 static GDir* _pwml_open_folder(PWML* pwml, const char* path) {
-	return g_dir_open(pwml_get_full_path(pwml, path), 0, NULL);
+	return g_dir_open(g_build_filename(pwml->working_directory, path, NULL), 0, NULL);
 }
 
 static GString* _strip_string(GString* string) {
@@ -67,15 +67,13 @@ typedef enum {
 } _PWML_WeaponsDatStage;
 
 static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path) {
-	const char* full_path = pwml_get_full_path(pwml, weapons_path);
 	char* contents;
 	GError* error = NULL;
 	
-	const char* weapons_dat_path = g_build_filename(full_path, PWML_WEAPONS_DAT, NULL);
+	const char* weapons_dat_path = g_build_filename(pwml->weapons_path, PWML_WEAPONS_DAT, NULL);
 	if (!g_file_get_contents(weapons_dat_path, &contents, NULL, &error)) {
 		g_printerr("Failed to read %s: %s\n", weapons_path, error->message);
 		g_error_free(error);
-		free((char*)full_path);
 		return NULL;
 	}
 	free((char*)weapons_dat_path);
@@ -171,7 +169,7 @@ static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path)
 
 
 static const char* __pwml_get_vanilla_mod_data_folder(PWML* pwml) {
-	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
+	const char* vanilla_mod_path = g_build_filename(pwml->mods_path, "vanilla", NULL);
 	const char* vanilla_mod_data = g_build_filename(vanilla_mod_path, PWML_MOD_DATA_FOLDER, NULL);
 	free((char*)vanilla_mod_path);
 	return vanilla_mod_data;
@@ -192,7 +190,7 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 		return false;
 	};
 
-	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER));
+	GPtrArray* files = _list_files_in_directory(pwml->weapons_path);
 	for (uint i = 0; i < files->len; i++) {
 		const char* path = g_ptr_array_index(files, i);
 		if (_file_utils_is_dir(path)) {
@@ -252,7 +250,7 @@ static bool __pwml_clone_vanilla_levels(PWML* pwml) {
 		return false;
 	};
 
-	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_LEVELS_FOLDER));
+	GPtrArray* files = _list_files_in_directory(pwml->levels_path);
 	for (uint i = 0; i < files->len; i++) {
 		const char* path = g_ptr_array_index(files, i);
 
@@ -284,7 +282,7 @@ static bool __pwml_clone_vanilla_folder_simple(PWML* pwml, const char* folder) {
 		free((char*)vanilla_mod_folder_path);
 		return false;
 	}
-	const char* folder_path = pwml_get_full_path(pwml, folder);
+	const char* folder_path = g_build_filename(pwml->working_directory, folder, NULL);
 	_file_utils_copy_all(folder_path, vanilla_mod_folder_path);
 
 	free((char*)folder_path);
@@ -295,7 +293,7 @@ static bool __pwml_clone_vanilla_folder_simple(PWML* pwml, const char* folder) {
 }
 
 static void _pwml_clone_vanilla(PWML* pwml) {
-	const char* vanilla_mod_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, "vanilla", NULL);
+	const char* vanilla_mod_path = g_build_filename(pwml->mods_path, "vanilla", NULL);
 
 	if (g_mkdir_with_parents(vanilla_mod_path, 0755) == -1) {
 		g_printerr("Failed to make vanilla mod folder at %s\n", vanilla_mod_path);
@@ -363,6 +361,14 @@ void pwml_free(PWML* pwml) {
 	free((char*)pwml->working_directory);
 	g_hash_table_destroy(pwml->mods);
 	g_ptr_array_free(pwml->weapons, true);
+
+	free((char*)pwml->graphics_path);
+	free((char*)pwml->levels_path);
+	free((char*)pwml->mods_path);
+	free((char*)pwml->music_path);
+	free((char*)pwml->objects_path);
+	free((char*)pwml->sound_path);
+	free((char*)pwml->weapons_path);
 	free(pwml);
 }
 
@@ -375,6 +381,14 @@ PWML* pwml_new(const char* working_directory) {
 	pwml->working_directory = g_strdup(working_directory);
 	pwml->mods = g_hash_table_new(g_str_hash, g_str_equal);
 	pwml->weapons = g_ptr_array_new_with_free_func(_pwml_weapon_free);
+
+	pwml->graphics_path = g_build_filename(pwml->working_directory, PWML_GRAPHICS_FOLDER, NULL);
+	pwml->levels_path = g_build_filename(pwml->working_directory, PWML_LEVELS_FOLDER, NULL);
+	pwml->mods_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, NULL);
+	pwml->music_path = g_build_filename(pwml->working_directory, PWML_MUSIC_FOLDER, NULL);
+	pwml->objects_path = g_build_filename(pwml->working_directory, PWML_OBJECTS_FOLDER, NULL);
+	pwml->sound_path = g_build_filename(pwml->working_directory, PWML_SOUND_FOLDER, NULL);
+	pwml->weapons_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, NULL);
 	
 	if (!_pwml_ensure_folder(pwml, PWML_MODS_FOLDER)) {
 		pwml_free(pwml);
@@ -407,6 +421,8 @@ PWML* pwml_new(const char* working_directory) {
 
 	return pwml;
 }
+
+
 
 static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 	PWML_Mod* mod = malloc(sizeof(PWML_Mod));
@@ -475,7 +491,7 @@ static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
 static GHashTable* _pwml_get_active_mods(PWML* pwml) {
 	GHashTable* active_mods = g_hash_table_new(g_str_hash, g_str_equal);
 
-	const char* active_mods_json_path = pwml_get_full_path(pwml, PWML_ACTIVE_MODS_JSON);
+	const char* active_mods_json_path = g_build_filename(pwml->working_directory, PWML_ACTIVE_MODS_JSON, NULL);
 	if (g_file_test(active_mods_json_path, G_FILE_TEST_EXISTS)) {
 		char* buffer;
 		GError* error = NULL;
@@ -521,7 +537,7 @@ static GHashTable* _pwml_get_active_mods(PWML* pwml) {
 
 void pwml_load_mods(PWML* pwml) {
 	GHashTable* active_mods = _pwml_get_active_mods(pwml);
-	GPtrArray* files = _list_files_in_directory(pwml_get_full_path(pwml, PWML_MODS_FOLDER));
+	GPtrArray* files = _list_files_in_directory(pwml->mods_path);
 	
 	for (uint i = 0; i < files->len; i++) {
 		PWML_Mod* mod = _pwml_load_mod(pwml, g_ptr_array_index(files, i));
@@ -693,7 +709,7 @@ void pwml_apply_mods(PWML* pwml) {
 		strcat(weapons_dat_data, "\n");
 	}
 
-	const char* weapons_dat_path = g_build_filename(game_weapons_path, PWML_WEAPONS_DAT, NULL);
+	const char* weapons_dat_path = g_build_filename(pwml->weapons_path, PWML_WEAPONS_DAT, NULL);
 
 	GError* error = NULL;
 	g_file_set_contents(weapons_dat_path, weapons_dat_data, -1, &error);

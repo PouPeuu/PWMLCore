@@ -25,12 +25,19 @@ typedef struct PWML {
 	const char* working_directory;
 	GHashTable* mods;
 	GPtrArray* weapons;
+
+	const char* graphics_path;
+	const char* levels_path;
+	const char* mods_path;
+	const char* music_path;
+	const char* objects_path;
+	const char* sound_path;
+	const char* weapons_path;
 } PWML;
 
 PWML* pwml_new(const char *working_directory);
 void pwml_free(PWML* pwml);
 
-const char* pwml_get_full_path(PWML* pwml, const char* path);
 GPtrArray* pwml_list_mods(PWML* pwml);
 void pwml_load_mods(PWML* pwml);
 
