@@ -21,7 +21,7 @@ void pwml_mod_free(PWML_Mod *mod) {
 
 static GPtrArray* __pwml_mod_get_weapons(PWML* pwml, PWML_Mod* mod) {
 	const char* weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
-	GPtrArray* files = _list_files_in_directory(weapons_path);
+	GPtrArray* files = _file_utils_list_files_in_directory(weapons_path);
 
 	GPtrArray* weapons = g_ptr_array_new_with_free_func(_pwml_weapon_free);
 
@@ -116,12 +116,57 @@ static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
 	free((char*)game_weapons_path);
 }
 
+static void __copy_all_if_dir(const char* from, const char* to) {
+	if (g_file_test(from, G_FILE_TEST_IS_DIR)) {
+		_file_utils_copy_all(from, to);
+	}
+}
+
+static void __copy_all_if_dir_except(const char* from, const char* to, const char* ignore) {
+	if (g_file_test(from, G_FILE_TEST_IS_DIR)) {
+		_file_utils_copy_all_except(from, to, ignore);
+	}
+}
+
 void _pwml_mod_apply(PWML* pwml, PWML_Mod* mod) {
+	// I feel like there should be a better way
 	const char* mod_weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
+	const char* mod_objects_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_OBJECTS_FOLDER, NULL);
+	const char* mod_levels_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_LEVELS_FOLDER, NULL);
+	const char* mod_music_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_MUSIC_FOLDER, NULL);
+	const char* mod_graphics_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_GRAPHICS_FOLDER, NULL);
+	const char* mod_sounds_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_SOUND_FOLDER, NULL);
+	const char* mod_menu_music_file_path = g_build_filename(mod_music_path, PWML_MENU_MUSIC_TXT, NULL);
+	const char* mod_graphics_xml_file_path = g_build_filename(mod_graphics_path, PWML_GRAPHICS_XML, NULL);
+	const char* mod_sounds_xml_file_path = g_build_filename(mod_sounds_path, PWML_SOUNDS_XML, NULL);
 
 	if (g_file_test(mod_weapons_path, G_FILE_TEST_IS_DIR)) {
 		__pwml_mod_apply_weapons(pwml, mod);
 	}
-	
+
+	__copy_all_if_dir(mod_objects_path, pwml->objects_path);
+	__copy_all_if_dir(mod_levels_path, pwml->levels_path);
+	__copy_all_if_dir_except(mod_music_path, pwml->music_path, PWML_MENU_MUSIC_TXT);
+	__copy_all_if_dir_except(mod_graphics_path, pwml->graphics_path, PWML_GRAPHICS_XML);
+	__copy_all_if_dir_except(mod_sounds_path, pwml->sound_path, PWML_SOUNDS_XML);
+
+	if (g_file_test(mod_menu_music_file_path, G_FILE_TEST_EXISTS)) {
+		g_ptr_array_add(pwml->menu_music_paths, strdup(mod_menu_music_file_path));
+	}
+	if (g_file_test(mod_graphics_xml_file_path, G_FILE_TEST_EXISTS)) {
+		g_ptr_array_add(pwml->graphics_xml_paths, strdup(mod_graphics_xml_file_path));
+	}
+	if (g_file_test(mod_sounds_xml_file_path, G_FILE_TEST_EXISTS)) {
+		g_ptr_array_add(pwml->sounds_xml_paths, strdup(mod_sounds_xml_file_path));
+	}
+
 	free((char*)mod_weapons_path);
+	free((char*)mod_objects_path);
+	free((char*)mod_levels_path);
+	free((char*)mod_music_path);
+	free((char*)mod_graphics_path);
+	free((char*)mod_sounds_path);
+	free((char*)mod_menu_music_file_path);
+	free((char*)mod_graphics_xml_file_path);
+	free((char*)mod_sounds_xml_file_path);
 }

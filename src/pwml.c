@@ -2,6 +2,7 @@
 #include "PWML/file_utils.h"
 #include "PWML/mod.h"
 #include "PWML/weapon.h"
+#include "PWML/xml_utils.h"
 #include <glib.h>
 #include <json-c/json_object.h>
 #include <json-c/json_tokener.h>
@@ -23,9 +24,12 @@ const char* const PWML_WEAPONS_DAT = "Weapons.dat";
 
 const char* const PWML_METADATA_JSON = "metadata.json";
 const char* const PWML_MOD_DESCRIPTION_FILE = "description.pango";
-
 const char* const PWML_ACTIVE_MODS_JSON = "active_mods.json";
 const char* const PWML_WEAPON_JSON = "weapon.json";
+
+const char* const PWML_MENU_MUSIC_TXT = "menu_music.txt";
+const char* const PWML_GRAPHICS_XML = "Graphics.xml";
+const char* const PWML_SOUNDS_XML = "Sounds.xml";
 
 const char* const PWML_MOD_DATA_FOLDER = "data";
 
@@ -190,7 +194,7 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 		return false;
 	};
 
-	GPtrArray* files = _list_files_in_directory(pwml->weapons_path);
+	GPtrArray* files = _file_utils_list_files_in_directory(pwml->weapons_path);
 	for (uint i = 0; i < files->len; i++) {
 		const char* path = g_ptr_array_index(files, i);
 		if (_file_utils_is_dir(path)) {
@@ -250,7 +254,7 @@ static bool __pwml_clone_vanilla_levels(PWML* pwml) {
 		return false;
 	};
 
-	GPtrArray* files = _list_files_in_directory(pwml->levels_path);
+	GPtrArray* files = _file_utils_list_files_in_directory(pwml->levels_path);
 	for (uint i = 0; i < files->len; i++) {
 		const char* path = g_ptr_array_index(files, i);
 
@@ -362,6 +366,10 @@ void pwml_free(PWML* pwml) {
 	g_hash_table_destroy(pwml->mods);
 	g_ptr_array_free(pwml->weapons, true);
 
+	g_ptr_array_free(pwml->menu_music_paths, true);
+	g_ptr_array_free(pwml->graphics_xml_paths, true);
+	g_ptr_array_free(pwml->sounds_xml_paths, true);
+
 	free((char*)pwml->graphics_path);
 	free((char*)pwml->levels_path);
 	free((char*)pwml->mods_path);
@@ -381,6 +389,10 @@ PWML* pwml_new(const char* working_directory) {
 	pwml->working_directory = g_strdup(working_directory);
 	pwml->mods = g_hash_table_new(g_str_hash, g_str_equal);
 	pwml->weapons = g_ptr_array_new_with_free_func(_pwml_weapon_free);
+
+	pwml->menu_music_paths = g_ptr_array_new();
+	pwml->graphics_xml_paths = g_ptr_array_new();
+	pwml->sounds_xml_paths = g_ptr_array_new();
 
 	pwml->graphics_path = g_build_filename(pwml->working_directory, PWML_GRAPHICS_FOLDER, NULL);
 	pwml->levels_path = g_build_filename(pwml->working_directory, PWML_LEVELS_FOLDER, NULL);
@@ -537,7 +549,7 @@ static GHashTable* _pwml_get_active_mods(PWML* pwml) {
 
 void pwml_load_mods(PWML* pwml) {
 	GHashTable* active_mods = _pwml_get_active_mods(pwml);
-	GPtrArray* files = _list_files_in_directory(pwml->mods_path);
+	GPtrArray* files = _file_utils_list_files_in_directory(pwml->mods_path);
 	
 	for (uint i = 0; i < files->len; i++) {
 		PWML_Mod* mod = _pwml_load_mod(pwml, g_ptr_array_index(files, i));
@@ -617,6 +629,7 @@ const char* pwml_get_mod_description(PWML* pwml, const char* id) {
 	return mod->description;
 }
 
+// pretty sure you can replace this with strcmp and a cast
 static int __compare_alphabetical(const void* _a, const void* _b) {
 	const char* a = _a;
 	const char* b = _b;
@@ -632,22 +645,7 @@ static int __compare_alphabetical(const void* _a, const void* _b) {
 	return strlen(a) - strlen(b);
 }
 
-void pwml_apply_mods(PWML* pwml) {
-	const char* game_weapons_path = pwml_get_full_path(pwml, PWML_WEAPONS_FOLDER);
-	_file_utils_delete_all(game_weapons_path);
-
-	g_ptr_array_remove_range(pwml->weapons, 0, pwml->weapons->len);
-
-	GHashTableIter iter;
-	g_hash_table_iter_init(&iter, pwml->mods);
-
-	PWML_Mod* mod;
-	while (g_hash_table_iter_next(&iter, NULL, (void**)&mod)) {
-		if (mod->active) {
-			_pwml_mod_apply(pwml, mod);
-		}
-	}
-
+static void __pwml_write_weapons_dat(PWML* pwml) {
 	//g_print("--------------\nApplying mods:\npwml->weapons->len: %u\n", pwml->weapons->len);
 
 	GPtrArray* weapon_names = g_ptr_array_new();
@@ -724,6 +722,80 @@ void pwml_apply_mods(PWML* pwml) {
 	g_ptr_array_free(weapon_names, true);
 	g_ptr_array_free(ship_weapon_names, true);
 	g_ptr_array_free(pilot_weapon_names, true);
+}
 
-	free((char*)game_weapons_path);
+static void __pwml_write_menu_music_txt(PWML* pwml) {
+	uint size = 0;
+	char* buffer = calloc(1, sizeof(char));
+	for (uint i = 0; i < pwml->menu_music_paths->len; i++) {
+		const char* path = g_ptr_array_index(pwml->menu_music_paths, i);
+
+		char* contents;
+		GError* error = NULL;
+
+		g_file_get_contents(path, &contents, NULL, &error);
+		if (error) {
+			g_printerr("Failed to read file %s\nGError: %s\n", path, error->message);
+			g_error_free(error);
+			continue;
+		}
+
+		uint old = size;
+		size += strlen(contents) + 1;
+		buffer = realloc(buffer, size * sizeof(char));
+		strcpy(buffer + old, contents);
+		buffer[size - 1] = '\n';
+	}
+	if (size > 0)
+		buffer[size - 1] = '\0';
+	
+	const char* menu_music_txt_path = g_build_filename(pwml->music_path, PWML_MENU_MUSIC_TXT, NULL);
+
+	GError* error = NULL;
+	g_file_set_contents(menu_music_txt_path, buffer, -1, &error);
+	if (error) {
+		g_printerr("Failed to write %s\nGError: %s\n", menu_music_txt_path, error->message);
+		g_error_free(error);
+	}
+
+	free((char*)menu_music_txt_path);
+	free(buffer);
+}
+
+static void _g_ptr_array_clear(GPtrArray* array) {
+	g_ptr_array_remove_range(array, 0, array->len);
+}
+
+void pwml_apply_mods(PWML* pwml) {
+	_file_utils_delete_all(pwml->graphics_path);
+	_file_utils_delete_all(pwml->levels_path);
+	_file_utils_delete_all(pwml->music_path);
+	_file_utils_delete_all(pwml->objects_path);
+	_file_utils_delete_all(pwml->sound_path);
+	_file_utils_delete_all(pwml->weapons_path);
+
+	GHashTableIter iter;
+	g_hash_table_iter_init(&iter, pwml->mods);
+
+	PWML_Mod* mod;
+	while (g_hash_table_iter_next(&iter, NULL, (void**)&mod)) {
+		if (mod->active) {
+			_pwml_mod_apply(pwml, mod);
+		}
+	}
+	
+	__pwml_write_weapons_dat(pwml);
+	_g_ptr_array_clear(pwml->weapons);
+
+	__pwml_write_menu_music_txt(pwml);
+	_g_ptr_array_clear(pwml->menu_music_paths);
+
+	const char* graphics_xml_path = g_build_filename(pwml->graphics_path, PWML_GRAPHICS_XML, NULL);
+	_xml_utils_combine_all_files(pwml->graphics_xml_paths, graphics_xml_path);
+	_g_ptr_array_clear(pwml->graphics_xml_paths);
+	const char* sounds_xml_path = g_build_filename(pwml->sound_path, PWML_SOUNDS_XML, NULL);
+	_xml_utils_combine_all_files(pwml->sounds_xml_paths, sounds_xml_path);
+	_g_ptr_array_clear(pwml->sounds_xml_paths);
+	free((char*)graphics_xml_path);
+	free((char*)sounds_xml_path);
 }

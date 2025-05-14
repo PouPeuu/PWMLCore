@@ -19,12 +19,20 @@ extern const char* const PWML_METADATA_JSON;
 extern const char* const PWML_ACTIVE_MODS_JSON;
 extern const char* const PWML_WEAPON_JSON;
 
+extern const char* const PWML_MENU_MUSIC_TXT;
+extern const char* const PWML_GRAPHICS_XML;
+extern const char* const PWML_SOUNDS_XML;
+
 extern const char* const PWML_MOD_DATA_FOLDER;
 
 typedef struct PWML {
 	const char* working_directory;
 	GHashTable* mods;
 	GPtrArray* weapons;
+
+	GPtrArray* menu_music_paths;
+	GPtrArray* graphics_xml_paths;
+	GPtrArray* sounds_xml_paths;
 
 	const char* graphics_path;
 	const char* levels_path;

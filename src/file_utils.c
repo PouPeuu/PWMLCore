@@ -33,7 +33,7 @@ void _file_utils_copy_file_with_path(const char* source, const char* destination
 	g_object_unref(destination_gfile);
 };
 
-GPtrArray* _list_files_in_directory(const char* path) {
+GPtrArray* _file_utils_list_files_in_directory(const char* path) {
 	GDir* dir = g_dir_open(path, 0, NULL);
 	if (!dir) {
 		g_printerr("Failed to open directory %s\n", path);
@@ -75,7 +75,7 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 
 			if (_file_utils_is_dir(current_path)) {
 				g_mkdir_with_parents(file_destination, 0755);
-				GPtrArray* files = _list_files_in_directory(current_path);
+				GPtrArray* files = _file_utils_list_files_in_directory(current_path);
 				for (uint i = 0; i < files->len; i++) {
 					char* file = g_ptr_array_index(files, i);
 					g_queue_push_head(queued_files, file);
@@ -101,10 +101,23 @@ void _file_utils_copy_recursive(const char* source_path, const char* destination
 }
 
 void _file_utils_copy_all(const char *from, const char *to) {
-	GPtrArray* files = _list_files_in_directory(from);
+	GPtrArray* files = _file_utils_list_files_in_directory(from);
 	for (uint i = 0; i < files->len; i++) {
 		const char* path = g_ptr_array_index(files, i);
 		_file_utils_copy_recursive(path, to);
+	}
+}
+
+void _file_utils_copy_all_except(const char* from, const char* to, const char* ignore) {
+	GPtrArray* files = _file_utils_list_files_in_directory(from);
+	for (uint i = 0; i < files->len; i++) {
+		const char* path = g_ptr_array_index(files, i);
+		const char* basename = g_path_get_basename(path);
+		if (strcmp(path, ignore) == 0 || strcmp(basename, ignore) == 0)
+			continue;
+		_file_utils_copy_recursive(path, to);
+		free((char*)path);
+		free((char*)basename);
 	}
 }
 
@@ -126,7 +139,7 @@ void _file_utils_delete_recursive(const char* path) {
 	const char* current_path;
 	while ((current_path = g_queue_pop_head(queue))) {
 		if (_file_utils_is_dir(current_path)) {
-			GPtrArray* files = _list_files_in_directory(current_path);
+			GPtrArray* files = _file_utils_list_files_in_directory(current_path);
 			for (uint i = 0; i < files->len; i++) {
 				const char* file = g_ptr_array_index(files, i);
 				if (_file_utils_is_dir(file)) {
@@ -154,11 +167,10 @@ void _file_utils_delete_all(const char* path) {
 		return;
 	}
 
-	GPtrArray* files = _list_files_in_directory(path);
+	GPtrArray* files = _file_utils_list_files_in_directory(path);
 	for (uint i = 0; i < files->len; i++) {
 		const char* file = g_ptr_array_index(files, i);
-		if (_file_utils_is_dir(file))
-			_file_utils_delete_recursive(file);
+		_file_utils_delete_recursive(file);
 	}
 	g_ptr_array_free(files, true);
 }

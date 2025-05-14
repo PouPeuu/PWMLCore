@@ -2,7 +2,6 @@
   {
     "arguments": [
       "/sbin/gcc",
-      "-g",
       "-Iinclude",
       "-c",
       "-I/usr/include/glib-2.0",
@@ -10,6 +9,57 @@
       "-I/usr/include/sysprof-6",
       "-pthread",
       "-I/usr/include/json-c",
+      "-g",
+      "-I/usr/include/libxml2",
+      "-DLZMA_API_STATIC",
+      "-pthread",
+      "-pthread",
+      "-o",
+      "build/file_utils.o",
+      "src/file_utils.c"
+    ],
+    "directory": "/home/poupeuu/Coding/C/PWML/PWMLCore",
+    "file": "/home/poupeuu/Coding/C/PWML/PWMLCore/src/file_utils.c",
+    "output": "/home/poupeuu/Coding/C/PWML/PWMLCore/build/file_utils.o"
+  },
+  {
+    "arguments": [
+      "/sbin/gcc",
+      "-Iinclude",
+      "-c",
+      "-I/usr/include/glib-2.0",
+      "-I/usr/lib/glib-2.0/include",
+      "-I/usr/include/sysprof-6",
+      "-pthread",
+      "-I/usr/include/json-c",
+      "-g",
+      "-I/usr/include/libxml2",
+      "-DLZMA_API_STATIC",
+      "-pthread",
+      "-pthread",
+      "-o",
+      "build/mod.o",
+      "src/mod.c"
+    ],
+    "directory": "/home/poupeuu/Coding/C/PWML/PWMLCore",
+    "file": "/home/poupeuu/Coding/C/PWML/PWMLCore/src/mod.c",
+    "output": "/home/poupeuu/Coding/C/PWML/PWMLCore/build/mod.o"
+  },
+  {
+    "arguments": [
+      "/sbin/gcc",
+      "-Iinclude",
+      "-c",
+      "-I/usr/include/glib-2.0",
+      "-I/usr/lib/glib-2.0/include",
+      "-I/usr/include/sysprof-6",
+      "-pthread",
+      "-I/usr/include/json-c",
+      "-g",
+      "-I/usr/include/libxml2",
+      "-DLZMA_API_STATIC",
+      "-pthread",
+      "-pthread",
       "-o",
       "build/pwml.o",
       "src/pwml.c"
@@ -17,5 +67,28 @@
     "directory": "/home/poupeuu/Coding/C/PWML/PWMLCore",
     "file": "/home/poupeuu/Coding/C/PWML/PWMLCore/src/pwml.c",
     "output": "/home/poupeuu/Coding/C/PWML/PWMLCore/build/pwml.o"
+  },
+  {
+    "arguments": [
+      "/sbin/gcc",
+      "-Iinclude",
+      "-c",
+      "-I/usr/include/glib-2.0",
+      "-I/usr/lib/glib-2.0/include",
+      "-I/usr/include/sysprof-6",
+      "-pthread",
+      "-I/usr/include/json-c",
+      "-g",
+      "-I/usr/include/libxml2",
+      "-DLZMA_API_STATIC",
+      "-pthread",
+      "-pthread",
+      "-o",
+      "build/weapon.o",
+      "src/weapon.c"
+    ],
+    "directory": "/home/poupeuu/Coding/C/PWML/PWMLCore",
+    "file": "/home/poupeuu/Coding/C/PWML/PWMLCore/src/weapon.c",
+    "output": "/home/poupeuu/Coding/C/PWML/PWMLCore/build/weapon.o"
   }
 ]
