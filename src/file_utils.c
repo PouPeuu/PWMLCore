@@ -121,9 +121,39 @@ void _file_utils_copy_all_except(const char* from, const char* to, const char* i
 	}
 }
 
+static void __debug_print_file_flags(const char* path) {
+	g_print("-- BEGIN FLAGS FOR FILE \"%s\" --\n", path);
+	if (g_file_test(path, G_FILE_TEST_EXISTS)) {
+		g_print("exists\n");
+	} else {
+		g_print("doesn't exist\n");
+	}
+	if (g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
+		g_print("regular\n");
+	} else {
+		g_print("not regular\n");
+	}
+	if (g_file_test(path, G_FILE_TEST_IS_DIR)) {
+		g_print("directory\n");
+	} else {
+		g_print("not a directory\n");
+	}
+	if (g_file_test(path, G_FILE_TEST_IS_EXECUTABLE)) {
+		g_print("executable\n");
+	} else {
+		g_print("not an executable\n");
+	}
+	if (g_file_test(path, G_FILE_TEST_IS_SYMLINK)) {
+		g_print("symlink\n");
+	} else {
+		g_print("not a symlink\n");
+	}
+}
+
 void _file_utils_delete_recursive(const char* path) {
-	if (!_file_utils_is_dir(path) && g_file_test(path, G_FILE_TEST_EXISTS)) {
+	if (g_file_test(path, G_FILE_TEST_IS_REGULAR)) {
 		remove(path);
+		return;
 	}
 	if (!g_file_test(path, G_FILE_TEST_EXISTS)) {
 		g_printerr("Cannot recursively delete %s; No such file or directory.\n", path);
