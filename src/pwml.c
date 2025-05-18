@@ -20,16 +20,20 @@ const char* const PWML_OBJECTS_FOLDER = "objects";
 const char* const PWML_MUSIC_FOLDER = "music";
 const char* const PWML_LEVELS_FOLDER = "levels";
 const char* const PWML_GRAPHICS_FOLDER = "graphics";
+const char* const PWML_BIN_FOLDER = "bin";
 const char* const PWML_WEAPONS_DAT = "Weapons.dat";
 
 const char* const PWML_METADATA_JSON = "metadata.json";
 const char* const PWML_MOD_DESCRIPTION_FILE = "description.pango";
 const char* const PWML_ACTIVE_MODS_JSON = "active_mods.json";
 const char* const PWML_WEAPON_JSON = "weapon.json";
+const char* const PWML_BUILTIN_WEAPONS_JSON = "builtin_weapons.json";
 
 const char* const PWML_MENU_MUSIC_TXT = "menu_music.txt";
 const char* const PWML_GRAPHICS_XML = "Graphics.xml";
 const char* const PWML_SOUNDS_XML = "Sounds.xml";
+
+const char* const PWML_WINGS_EXECUTABLE = "Wings.exe";
 
 const char* const PWML_MOD_DATA_FOLDER = "data";
 
@@ -39,10 +43,6 @@ static bool _pwml_ensure_folder(PWML* pwml, const char* path) {
 		return false;
 	}
 	return true;
-}
-
-static GDir* _pwml_open_folder(PWML* pwml, const char* path) {
-	return g_dir_open(g_build_filename(pwml->working_directory, path, NULL), 0, NULL);
 }
 
 static GString* _strip_string(GString* string) {
@@ -69,6 +69,8 @@ typedef enum {
 	SHIP_STAGE,
 	PILOT_STAGE
 } _PWML_WeaponsDatStage;
+
+
 
 static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path) {
 	char* contents;
@@ -122,6 +124,7 @@ static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path)
 					weapon->name = _g_string_clone_buffer(stripped);
 					weapon->pilot = false;
 					weapon->ship = false;
+					weapon->has_built_in_files = true;
 					g_hash_table_insert(weapons, g_strdup(weapon->name), weapon);
 					break;
 				}
@@ -135,6 +138,7 @@ static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path)
 						weapon->name = _g_string_clone_buffer(stripped);
 						weapon->pilot = false;
 						weapon->ship = true;
+						weapon->has_built_in_files = true;
 						g_hash_table_insert(weapons, g_strdup(weapon->name), weapon);
 					}
 					break;
@@ -149,6 +153,7 @@ static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path)
 						weapon->name = _g_string_clone_buffer(stripped);
 						weapon->pilot = true;
 						weapon->ship = false;
+						weapon->has_built_in_files = true;
 						g_hash_table_insert(weapons, g_strdup(weapon->name), weapon);
 					}
 					break;
@@ -169,8 +174,6 @@ static GHashTable* _pwml_parse_weapons_dat(PWML* pwml, const char* weapons_path)
 
 	return weapons;
 }
-
-
 
 static const char* __pwml_get_vanilla_mod_data_folder(PWML* pwml) {
 	const char* vanilla_mod_path = g_build_filename(pwml->mods_path, "vanilla", NULL);
@@ -202,11 +205,13 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 			const char* name = g_path_get_basename(path);
 			if (g_hash_table_contains(weapons, name)) {
 				weapon = g_hash_table_lookup(weapons, name);
+				weapon->has_built_in_files = false;
 			} else {
 				weapon = malloc(sizeof(_PWML_Weapon));
 				weapon->name = g_strdup(name);
 				weapon->pilot = false;
 				weapon->ship = false;
+				weapon->has_built_in_files = false;
 			}
 
 			_file_utils_copy_recursive(path, vanilla_mod_weapons);
@@ -234,13 +239,48 @@ static bool __pwml_clone_vanilla_weapons(PWML* pwml) {
 			free((char*)name);
 			free((char*)weapon_json_path);
 		}
-
-		free((char*)path);
 	}
 
+	json_object* root = json_object_new_object();
+	json_object* j_weapons = json_object_new_array();
+
+	GHashTableIter iter;
+	g_hash_table_iter_init(&iter, weapons);
+
+	_PWML_Weapon* weapon;
+	while (g_hash_table_iter_next(&iter, NULL, (void**)&weapon)) {
+		if (weapon->has_built_in_files) {
+			json_object* j_weapon = json_object_new_object();
+
+			json_object* name = json_object_new_string(weapon->name);
+			json_object_object_add(j_weapon, "name", name);
+			json_object* ship = json_object_new_boolean(weapon->ship);
+			json_object_object_add(j_weapon, "ship", ship);
+			json_object* pilot = json_object_new_boolean(weapon->pilot);
+			json_object_object_add(j_weapon, "pilot", pilot);
+
+			json_object_array_add(j_weapons, j_weapon);
+		}
+	}
+
+	json_object_object_add(root, "weapons", j_weapons);
+
+	const char* built_in_weapons_json_path = g_build_filename(pwml->mods_path, "vanilla", PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, PWML_BUILTIN_WEAPONS_JSON, NULL);
+	const char* json_str = json_object_to_json_string(root);
+
+	GError* error = NULL;
+	g_file_set_contents(built_in_weapons_json_path, json_str, -1, &error);
+	if (error) {
+		g_printerr("Failed to write json file %s\n", built_in_weapons_json_path);
+		g_error_free(error);
+	}
+
+	json_object_put(root);
+	free((char*)built_in_weapons_json_path);
 	free((char*)vanilla_mod_data);
 	free((char*)vanilla_mod_weapons);
 	g_hash_table_destroy(weapons);
+	g_ptr_array_free(files, true);
 
 	return true;
 }
@@ -377,6 +417,8 @@ void pwml_free(PWML* pwml) {
 	free((char*)pwml->objects_path);
 	free((char*)pwml->sound_path);
 	free((char*)pwml->weapons_path);
+	free((char*)pwml->bin_path);
+	free((char*)pwml->exectuable_path);
 	free(pwml);
 }
 
@@ -394,6 +436,7 @@ PWML* pwml_new(const char* working_directory) {
 	pwml->graphics_xml_paths = g_ptr_array_new();
 	pwml->sounds_xml_paths = g_ptr_array_new();
 
+	pwml->bin_path = g_build_filename(pwml->working_directory, PWML_BIN_FOLDER, NULL);
 	pwml->graphics_path = g_build_filename(pwml->working_directory, PWML_GRAPHICS_FOLDER, NULL);
 	pwml->levels_path = g_build_filename(pwml->working_directory, PWML_LEVELS_FOLDER, NULL);
 	pwml->mods_path = g_build_filename(pwml->working_directory, PWML_MODS_FOLDER, NULL);
@@ -401,6 +444,7 @@ PWML* pwml_new(const char* working_directory) {
 	pwml->objects_path = g_build_filename(pwml->working_directory, PWML_OBJECTS_FOLDER, NULL);
 	pwml->sound_path = g_build_filename(pwml->working_directory, PWML_SOUND_FOLDER, NULL);
 	pwml->weapons_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, NULL);
+	pwml->exectuable_path = g_build_filename(pwml->bin_path, PWML_WINGS_EXECUTABLE, NULL);
 	
 	if (!_pwml_ensure_folder(pwml, PWML_MODS_FOLDER)) {
 		pwml_free(pwml);
@@ -436,7 +480,7 @@ PWML* pwml_new(const char* working_directory) {
 
 
 
-static PWML_Mod* _pwml_load_mod(PWML* pwml, const char* path) {
+static PWML_Mod* _pwml_load_mod(const char* path) {
 	PWML_Mod* mod = malloc(sizeof(PWML_Mod));
 	mod->path = g_strdup(path);
 	mod->id = g_path_get_basename(path);
@@ -531,7 +575,7 @@ static GHashTable* _pwml_get_active_mods(PWML* pwml) {
 			return NULL;
 		}
 
-		int len = json_object_array_length(j_active_mods);
+		uint len = json_object_array_length(j_active_mods);
 		for (uint i = 0; i < len; i++) {
 			json_object* name = json_object_array_get_idx(j_active_mods, i);
 			if (json_object_get_type(name) != json_type_string)
@@ -552,7 +596,7 @@ void pwml_load_mods(PWML* pwml) {
 	GPtrArray* files = _file_utils_list_files_in_directory(pwml->mods_path);
 	
 	for (uint i = 0; i < files->len; i++) {
-		PWML_Mod* mod = _pwml_load_mod(pwml, g_ptr_array_index(files, i));
+		PWML_Mod* mod = _pwml_load_mod(g_ptr_array_index(files, i));
 		if (mod) {
 			if (g_hash_table_contains(active_mods, mod->id))
 				mod->active = true;

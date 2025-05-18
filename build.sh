@@ -8,7 +8,7 @@ LIB_INSTALL_DIRECTORY="/usr/local/lib"
 INCLUDE_INSTALL_DIRECTORY="/usr/local/include"
 NAME="PWML"
 PKG_CONFIG_DEPENDENCIES="glib-2.0 json-c"
-EXTRA_FLAGS="-g $(xml2-config --cflags --libs)"
+EXTRA_FLAGS="-g $(xml2-config --cflags --libs) -O0 -Wall -Wextra -pedantic -Werror"
 
 RETURN_WORKING_DIRECTORY=$(pwd)
 cd /home/poupeuu/Coding/C/PWML/PWMLCore

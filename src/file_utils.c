@@ -31,7 +31,7 @@ void _file_utils_copy_file_with_path(const char* source, const char* destination
 	_file_utils_copy_file(source_gfile, destination_gfile);
 	g_object_unref(source_gfile);
 	g_object_unref(destination_gfile);
-};
+}
 
 GPtrArray* _file_utils_list_files_in_directory(const char* path) {
 	GDir* dir = g_dir_open(path, 0, NULL);
@@ -121,7 +121,7 @@ void _file_utils_copy_all_except(const char* from, const char* to, const char* i
 	}
 }
 
-static void __debug_print_file_flags(const char* path) {
+/*static void __debug_print_file_flags(const char* path) {
 	g_print("-- BEGIN FLAGS FOR FILE \"%s\" --\n", path);
 	if (g_file_test(path, G_FILE_TEST_EXISTS)) {
 		g_print("exists\n");
@@ -148,7 +148,7 @@ static void __debug_print_file_flags(const char* path) {
 	} else {
 		g_print("not a symlink\n");
 	}
-}
+}*/
 
 void _file_utils_delete_recursive(const char* path) {
 	if (g_file_test(path, G_FILE_TEST_IS_REGULAR)) {

@@ -19,7 +19,7 @@ void pwml_mod_free(PWML_Mod *mod) {
 	free(mod);
 }
 
-static GPtrArray* __pwml_mod_get_weapons(PWML* pwml, PWML_Mod* mod) {
+static GPtrArray* __pwml_mod_get_weapons(PWML_Mod* mod) {
 	const char* weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
 	GPtrArray* files = _file_utils_list_files_in_directory(weapons_path);
 
@@ -94,7 +94,7 @@ static GPtrArray* __pwml_mod_get_weapons(PWML* pwml, PWML_Mod* mod) {
 static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
 	const char* mod_weapons_path = g_build_filename(mod->path, PWML_MOD_DATA_FOLDER, PWML_WEAPONS_FOLDER, NULL);
 	const char* game_weapons_path = g_build_filename(pwml->working_directory, PWML_WEAPONS_FOLDER, NULL);
-	GPtrArray* weapons = __pwml_mod_get_weapons(pwml, mod);
+	GPtrArray* weapons = __pwml_mod_get_weapons(mod);
 
 	for (uint i = 0; i < weapons->len; i++) {
 		_PWML_Weapon* weapon = g_ptr_array_index(weapons, i);
@@ -111,6 +111,40 @@ static void __pwml_mod_apply_weapons(PWML* pwml, PWML_Mod* mod) {
 		g_ptr_array_add(pwml->weapons, weapon);
 	}
 
+	const char* mod_builtin_weapons_json_path = g_build_filename(mod_weapons_path, PWML_BUILTIN_WEAPONS_JSON, NULL);
+	if (g_file_test(mod_builtin_weapons_json_path, G_FILE_TEST_EXISTS)) {
+		char* contents;
+		GError* error = NULL;
+		g_file_get_contents(mod_builtin_weapons_json_path, &contents, NULL, &error);
+		if (error) {
+			g_printerr("Failed to read %s\n", mod_builtin_weapons_json_path);
+			g_error_free(error);
+			goto cleanup;
+		}
+
+		json_object* root = json_tokener_parse(contents);
+		json_object* j_weapons = json_object_object_get(root, "weapons");
+
+		uint len = json_object_array_length(j_weapons);
+		for (uint i = 0; i < len; i++) {
+			json_object* j_weapon = json_object_array_get_idx(j_weapons, i);
+			json_object* weapon_name = json_object_object_get(j_weapon, "name");
+			json_object* ship = json_object_object_get(j_weapon, "ship");
+			json_object* pilot = json_object_object_get(j_weapon, "pilot");
+
+			_PWML_Weapon* weapon = malloc(sizeof(_PWML_Weapon));
+			weapon->has_built_in_files = true;
+			weapon->name = strdup(json_object_get_string(weapon_name));
+			weapon->ship = json_object_get_boolean(ship);
+			weapon->pilot = json_object_get_boolean(pilot);
+			g_ptr_array_add(pwml->weapons, weapon);
+		}
+
+		json_object_put(root);
+	}
+
+cleanup:
+	free((char*)mod_builtin_weapons_json_path);
 	g_ptr_array_free(weapons, false);
 	free((char*)mod_weapons_path);
 	free((char*)game_weapons_path);
